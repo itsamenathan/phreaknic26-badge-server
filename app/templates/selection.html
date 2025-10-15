@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Badge Image Selection</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+</head>
+<body>
+    <main class="container">
+        {% if profile %}
+            <header>
+                <h1>{{ profile.name }}</h1>
+                <p>Select the image you want to send for <strong>{{ profile.unique_id }}</strong>.</p>
+            </header>
+            {% if sent %}
+                <div class="alert success" role="status">
+                    Image sent to the queue successfully.
+                </div>
+            {% endif %}
+            {% if error %}
+                <div class="alert error" role="alert">
+                    {{ error }}
+                </div>
+            {% endif %}
+            <form method="post" class="selection-form" id="selection-form">
+                <input type="hidden" name="image_label" id="selected-label">
+                <div class="gallery">
+                    {% for image in profile.images %}
+                        <button
+                            type="button"
+                            class="thumbnail"
+                            data-label="{{ image.label }}"
+                            data-src="data:{{ image.image_mime_type or 'image/png' }};base64,{{ image.image_base64 }}"
+                        >
+                            <img src="data:{{ image.image_mime_type or 'image/png' }};base64,{{ image.image_base64 }}" alt="{{ image.label }}">
+                            <span>{{ image.label }}</span>
+                        </button>
+                    {% else %}
+                        <p class="empty-state">No images available for this badge.</p>
+                    {% endfor %}
+                </div>
+                <button type="submit" class="primary" id="send-button" disabled>
+                    Send
+                </button>
+            </form>
+        {% else %}
+            <header>
+                <h1>Badge Lookup</h1>
+            </header>
+            <div class="alert error" role="alert">
+                {{ error or "We couldn't find that badge. Please verify the link." }}
+            </div>
+        {% endif %}
+    </main>
+    <script>
+        const buttons = Array.from(document.querySelectorAll('.thumbnail'));
+        const selectionInput = document.getElementById('selected-label');
+        const sendButton = document.getElementById('send-button');
+
+        buttons.forEach(button => {
+            button.addEventListener('click', () => {
+                buttons.forEach(btn => btn.classList.remove('active'));
+                button.classList.add('active');
+                selectionInput.value = button.dataset.label;
+                sendButton.disabled = false;
+            });
+        });
+    </script>
+</body>
+</html>
