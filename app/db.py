@@ -185,6 +185,32 @@ class Database:
 
         return True
 
+    async def create_or_update_badge(self, unique_id: str, name: str) -> str:
+        async with self.session() as session:
+            stmt = select(Badge).where(Badge.unique_id == unique_id)
+            badge = await session.scalar(stmt)
+            if badge is None:
+                badge = Badge(unique_id=unique_id, name=name)
+                session.add(badge)
+                return "created"
+
+            badge.name = name
+            return "updated"
+
+    async def list_badges(self, limit: int = 100) -> List[Dict[str, Any]]:
+        async with self.session() as session:
+            stmt = select(Badge).order_by(Badge.unique_id.asc()).limit(limit)
+            rows = await session.scalars(stmt)
+            badges = rows.all()
+
+        return [
+            {
+                "unique_id": badge.unique_id,
+                "name": badge.name,
+            }
+            for badge in badges
+        ]
+
     async def list_work_items(
         self,
         *,

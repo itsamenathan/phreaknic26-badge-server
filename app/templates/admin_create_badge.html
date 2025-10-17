@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Badge</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+</head>
+<body>
+    <main class="container">
+        <header>
+            <h1>Create Badge</h1>
+            <p>Register a badge so attendees can look it up by unique ID.</p>
+        </header>
+
+        {% if success %}
+            <div class="alert success" role="status">
+                {{ success }}
+            </div>
+        {% endif %}
+        {% if error %}
+            <div class="alert error" role="alert">
+                {{ error }}
+            </div>
+        {% endif %}
+
+        <form method="post" class="admin-form">
+            <label class="field">
+                <span>Badge ID</span>
+                <input type="text" name="unique_id" required value="{{ form.unique_id }}">
+            </label>
+            <label class="field">
+                <span>Name</span>
+                <input type="text" name="name" required value="{{ form.name }}">
+            </label>
+            <button type="submit" class="primary">Save Badge</button>
+        </form>
+
+        <section class="admin-table-section">
+            <header class="section-header">
+                <h2>Existing Badges</h2>
+                <p>Review or update attendee names. Click a badge to populate the form above.</p>
+            </header>
+            {% if badges %}
+                <div class="badge-table-wrapper">
+                    <table class="badge-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Badge ID</th>
+                                <th scope="col">Name</th>
+                                <th scope="col">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for badge in badges %}
+                                <tr>
+                                    <td data-label="Badge ID" class="badge-id-cell">
+                                        <a
+                                            class="link-button"
+                                            href="{{ url_for('get_badge', unique_id=badge.unique_id) }}"
+                                        >
+                                            {{ badge.unique_id }}
+                                        </a>
+                                    </td>
+                                    <td data-label="Name">{{ badge.name }}</td>
+                                    <td data-label="Actions">
+                                        <form method="post" class="inline-form">
+                                            <input type="hidden" name="unique_id" value="{{ badge.unique_id }}">
+                                            <label class="field compact">
+                                                <span class="visually-hidden">New name for {{ badge.unique_id }}</span>
+                                                <input type="text" name="name" value="{{ badge.name }}" required>
+                                            </label>
+                                            <button type="submit" class="secondary">Update</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="empty-state">No badges have been registered yet.</p>
+            {% endif %}
+        </section>
+    </main>
+</body>
+</html>

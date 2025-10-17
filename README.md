@@ -1,12 +1,16 @@
 # PhreakNIC 26 Badge Server
 
-Python web service for selecting badge artwork and queueing work items for downstream processing.
+Python web service for managing PhreakNIC badge artwork, from attendee selection through to the printable work queue.
 
 ## Features
-- Public `GET /id={unique_id}` endpoint renders a minimal UI showing the badge holder's name and available artwork thumbnails.
-- Submitting the form enqueues the badge selection (unique id, name, selected image) into PostgreSQL for later processing.
-- Authenticated `GET /get-work` endpoint returns the oldest unprocessed queue entry as JSON and marks it processed to prevent duplication.
-- Built with FastAPI, asyncpg connection pooling, server-side templates, and basic HTML/CSS for a clean interactive experience.
+- Attendee badge page (`/id={unique_id}`) shows the badge holder’s name and current artwork options.
+- Admin upload screen (`/admin/upload`) lets authenticated staff add, preview, and delete available badge artwork.
+- Admin badge creation screen (`/admin/create-badge`) registers badge IDs, lists existing entries, and lets admins update attendee names ahead of onsite selection.
+- Admin queue dashboard (`/admin/queue`) shows pending work items with controls to mark them processed or delete them.
+- Admin hub (`/admin`) links to the badge, artwork, and queue tools behind a single login.
+- Programmatic badge API (`POST /admin/api/create-badge`) lets trusted systems register attendees via JSON.
+- Authenticated work API (`/get-work`) returns the oldest unprocessed queue entry as JSON and marks it processed.
+- Built with FastAPI, SQLAlchemy’s async engine, Jinja2 templates, and lightweight HTML/CSS for quick operator workflows.
 
 ## Prerequisites
 1. Python 3.11+
@@ -29,10 +33,12 @@ Set the following environment variables before launching the app:
 | Variable | Description |
 | --- | --- |
 | `DATABASE_URL` | PostgreSQL connection string (`postgresql://user:pass@host:port/dbname`) |
-| `WORK_BASIC_AUTH_USERNAME` | Username required to call `GET /get-work` |
-| `WORK_BASIC_AUTH_PASSWORD` | Password required to call `GET /get-work` |
+| `WORK_BASIC_AUTH_USERNAME` | Username required for all admin endpoints and `GET /get-work` |
+| `WORK_BASIC_AUTH_PASSWORD` | Password required for all admin endpoints and `GET /get-work` |
 | `DB_POOL_MIN_SIZE` *(optional)* | Minimum PostgreSQL pool size (default `1`) |
 | `DB_POOL_MAX_SIZE` *(optional)* | Maximum PostgreSQL pool size (default `10`) |
+
+Use the same credentials to access `/admin/upload`, `/admin/queue`, and the work API.
 
 ## Database Schema
 Below is a reference schema used by the application. Adjust names and columns as needed, but preserve the referenced fields.
@@ -44,11 +50,18 @@ CREATE TABLE badges (
 );
 
 CREATE TABLE badge_images (
-    id SERIAL PRIMARY KEY,
     unique_id TEXT NOT NULL REFERENCES badges(unique_id) ON DELETE CASCADE,
     image_label TEXT NOT NULL,
     image_base64 TEXT NOT NULL,
-    image_mime_type TEXT NOT NULL DEFAULT 'image/png'
+    image_mime_type TEXT,
+    PRIMARY KEY (unique_id, image_label)
+);
+
+CREATE TABLE available_images (
+    id SERIAL PRIMARY KEY,
+    image_label TEXT UNIQUE NOT NULL,
+    image_base64 TEXT NOT NULL,
+    image_mime_type TEXT
 );
 
 CREATE TABLE work_queue (
@@ -74,6 +87,36 @@ CREATE INDEX idx_work_queue_processed_created
 - `POST /id={unique_id}`  
   Handles image selection submission. On success, redirects back to the GET view with a confirmation banner.
 
+- `GET /admin/upload` *(Basic Auth)*  
+  Shows the upload form plus a gallery of existing artwork with delete buttons.
+
+- `POST /admin/upload` *(Basic Auth)*  
+  Saves or replaces an available image.
+
+- `POST /admin/upload/delete` *(Basic Auth)*  
+  Deletes an available image by label.
+
+- `GET /admin` *(Basic Auth)*  
+  Landing page that links to badge creation, artwork management, and queue review.
+
+- `GET /admin/create-badge` *(Basic Auth)*  
+  Displays a simple form to register or update attendees.
+
+- `POST /admin/create-badge` *(Basic Auth)*  
+  Saves the badge ID and name so the attendee can access `/id={unique_id}`.
+
+- `POST /admin/api/create-badge` *(Basic Auth, JSON)*  
+  Accepts a JSON body `{"unique_id": "...", "name": "..."}` and returns `201 Created` for new badges or `200 OK` when updating an existing record.
+
+- `GET /admin/queue` *(Basic Auth)*  
+  Displays up to 50 recent work items (toggle processed items with `?show_processed=1`).
+
+- `POST /admin/queue/mark` *(Basic Auth)*  
+  Marks a work item as processed.
+
+- `POST /admin/queue/delete` *(Basic Auth)*  
+  Permanently removes a work item.
+
 - `GET /get-work` *(Basic Auth)*  
   Returns the oldest unprocessed queue entry:
   ```json
@@ -92,9 +135,10 @@ CREATE INDEX idx_work_queue_processed_created
   Lightweight readiness probe returning `{"status": "ok"}`.
 
 ## Error Handling & Security
-- All database operations are wrapped in connection pooling via asyncpg.
+- All database interactions run through SQLAlchemy’s async engine with an explicit session per request.
 - Basic authentication with constant-time comparisons protects the work queue endpoint.
 - Graceful error messages are displayed for badge lookup, enqueue failures, and queue retrieval issues.
+- Admin pages reuse the same basic auth and surface upload/queue errors inline.
 
 ## Testing
 Install optional development dependencies:

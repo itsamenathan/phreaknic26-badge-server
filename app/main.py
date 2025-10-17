@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlencode
 
-from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile, status
+from fastapi import Body, Depends, FastAPI, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from starlette.responses import Response
@@ -97,6 +97,37 @@ async def _render_admin_upload(
             "success": success,
             "error": combined_error,
             "images": images,
+        },
+        status_code=status_code,
+    )
+
+
+async def _render_admin_create_badge(
+    request: Request,
+    form_data: Dict[str, str],
+    *,
+    success: Optional[str],
+    error: Optional[str],
+    status_code: int = status.HTTP_200_OK,
+) -> Response:
+    badges: List[Dict[str, str]] = []
+    load_error: Optional[str] = None
+    try:
+        badges = await db.list_badges()
+    except SQLAlchemyError:
+        logger.exception("Failed to load badges")
+        load_error = "We couldn't load the existing badges. Please refresh the page."
+
+    error_messages = [msg for msg in (error, load_error) if msg]
+    combined_error = "; ".join(error_messages) if error_messages else None
+    return templates.TemplateResponse(
+        "admin_create_badge.html",
+        {
+            "request": request,
+            "form": form_data,
+            "success": success,
+            "error": combined_error,
+            "badges": badges,
         },
         status_code=status_code,
     )
@@ -384,6 +415,129 @@ async def admin_delete_image(
     redirect_url = f"{request.url_for('admin_upload_form')}?{urlencode(query_params)}"
     return RedirectResponse(redirect_url, status_code=status.HTTP_303_SEE_OTHER)
 
+
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_index(
+    request: Request,
+    credentials: HTTPBasicCredentials = Depends(verify_credentials),
+) -> Response:
+    return templates.TemplateResponse(
+        "admin_index.html",
+        {
+            "request": request,
+        },
+    )
+
+
+@app.get("/admin/create-badge", response_class=HTMLResponse)
+async def admin_create_badge_form(
+    request: Request,
+    unique_id: Optional[str] = None,
+    name: Optional[str] = None,
+    edit: Optional[str] = None,
+    success: Optional[str] = None,
+    error: Optional[str] = None,
+    credentials: HTTPBasicCredentials = Depends(verify_credentials),
+) -> Response:
+    form_data = {
+        "unique_id": unique_id or "",
+        "name": name or "",
+    }
+    return await _render_admin_create_badge(
+        request,
+        form_data,
+        success=success,
+        error=error,
+    )
+
+
+@app.post("/admin/create-badge", response_class=HTMLResponse)
+async def admin_create_badge_submit(
+    request: Request,
+    unique_id: str = Form(...),
+    name: str = Form(...),
+    credentials: HTTPBasicCredentials = Depends(verify_credentials),
+) -> Response:
+    unique_id = unique_id.strip()
+    name = name.strip()
+    form_data = {"unique_id": unique_id, "name": name}
+
+    if not unique_id or not name:
+        return await _render_admin_create_badge(
+            request,
+            form_data,
+            success=None,
+            error="Both badge ID and name are required.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        outcome = await db.create_or_update_badge(unique_id=unique_id, name=name)
+    except SQLAlchemyError:
+        logger.exception("Failed to create or update badge %s", unique_id)
+        return await _render_admin_create_badge(
+            request,
+            form_data,
+            success=None,
+            error="Something went wrong while saving the badge. Please try again.",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+    message = (
+        "Badge created successfully."
+        if outcome == "created"
+        else "Badge updated successfully."
+    )
+    query_params = urlencode(
+        {
+            "success": message,
+            "unique_id": unique_id,
+            "name": name,
+        }
+    )
+    redirect_url = f"{request.url_for('admin_create_badge_form')}?{query_params}"
+    return RedirectResponse(redirect_url, status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/admin/api/create-badge", response_class=JSONResponse)
+async def admin_create_badge_api(
+    payload: Dict[str, Any] = Body(...),
+    credentials: HTTPBasicCredentials = Depends(verify_credentials),
+) -> Response:
+    unique_id = (payload.get("unique_id") or "").strip()
+    name = (payload.get("name") or "").strip()
+
+    if not unique_id or not name:
+        return JSONResponse(
+            {"detail": "Both unique_id and name are required."},
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        outcome = await db.create_or_update_badge(unique_id=unique_id, name=name)
+    except SQLAlchemyError:
+        logger.exception("Failed to create or update badge %s via API", unique_id)
+        return JSONResponse(
+            {"detail": "Something went wrong while saving the badge. Please try again."},
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+    status_code = (
+        status.HTTP_201_CREATED if outcome == "created" else status.HTTP_200_OK
+    )
+    return JSONResponse(
+        {
+            "status": outcome,
+            "unique_id": unique_id,
+            "name": name,
+            "message": (
+                "Badge created successfully."
+                if outcome == "created"
+                else "Badge updated successfully."
+            ),
+        },
+        status_code=status_code,
+    )
 
 @app.get("/admin/queue", response_class=HTMLResponse)
 async def admin_queue(
