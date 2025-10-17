@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Badge Upload</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+</head>
+<body>
+    <main class="container">
+        <header>
+            <h1>Upload Badge Image</h1>
+            <p>Add or replace images available to attendees.</p>
+        </header>
+
+        {% if success %}
+            <div class="alert success" role="status">
+                {{ success }}
+            </div>
+        {% endif %}
+        {% if error %}
+            <div class="alert error" role="alert">
+                {{ error }}
+            </div>
+        {% endif %}
+
+        <form method="post" enctype="multipart/form-data" class="admin-form">
+            <label class="field">
+                <span>Image Label</span>
+                <input type="text" name="image_label" required value="{{ form.image_label }}">
+            </label>
+            <label class="field">
+                <span>Image File</span>
+                <input type="file" name="image_file" accept="image/*" required>
+            </label>
+            <button type="submit" class="primary">Upload</button>
+        </form>
+
+        <section class="admin-gallery-section">
+            <header class="section-header">
+                <h2>Available Images</h2>
+                <p>Preview and manage the images currently offered to attendees.</p>
+            </header>
+            {% if images %}
+                <div class="admin-gallery">
+                    {% for image in images %}
+                        <article class="admin-card">
+                            <div class="admin-card__preview">
+                                <img src="data:{{ image.image_mime_type or 'image/png' }};base64,{{ image.image_base64 }}" alt="{{ image.image_label }}">
+                            </div>
+                            <div class="admin-card__meta">
+                                <span class="admin-card__label">{{ image.image_label }}</span>
+                                <form method="post" action="{{ url_for('admin_delete_image') }}">
+                                    <input type="hidden" name="image_label" value="{{ image.image_label }}">
+                                    <button type="submit" class="danger">Delete</button>
+                                </form>
+                            </div>
+                        </article>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="empty-state">No images have been uploaded yet.</p>
+            {% endif %}
+        </section>
+    </main>
+</body>
+</html>

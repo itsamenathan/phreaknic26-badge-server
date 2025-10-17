@@ -1,18 +1,20 @@
 from __future__ import annotations
 
-import secrets
+import base64
 import logging
+import secrets
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import urlencode
 
-from fastapi import Depends, FastAPI, Form, HTTPException, Request, status
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from starlette.responses import Response
 from starlette.staticfiles import StaticFiles
 from starlette.templating import Jinja2Templates
 
-from asyncpg import PostgresError
+from sqlalchemy.exc import SQLAlchemyError
 
 from .config import get_settings
 from .db import db
@@ -28,6 +30,8 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 security = HTTPBasic()
 logger = logging.getLogger(__name__)
+
+QUEUE_PAGE_LIMIT = 50
 
 
 async def startup_event() -> None:
@@ -65,6 +69,80 @@ def verify_credentials(
     return credentials
 
 
+async def _load_available_images() -> Tuple[List[Dict[str, Optional[str]]], Optional[str]]:
+    try:
+        images = await db.list_available_images()
+        return images, None
+    except SQLAlchemyError:
+        logger.exception("Failed to load available images")
+        return [], "We couldn't load the existing images. Please refresh the page."
+
+
+async def _render_admin_upload(
+    request: Request,
+    form_data: Dict[str, str],
+    *,
+    success: Optional[str],
+    error: Optional[str],
+    status_code: int = status.HTTP_200_OK,
+) -> Response:
+    images, load_error = await _load_available_images()
+    error_messages = [msg for msg in (error, load_error) if msg]
+    combined_error = "; ".join(error_messages) if error_messages else None
+    return templates.TemplateResponse(
+        "admin_upload.html",
+        {
+            "request": request,
+            "form": form_data,
+            "success": success,
+            "error": combined_error,
+            "images": images,
+        },
+        status_code=status_code,
+    )
+
+
+async def _load_queue_items(include_processed: bool) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+    try:
+        items = await db.list_work_items(include_processed=include_processed, limit=QUEUE_PAGE_LIMIT)
+        return items, None
+    except SQLAlchemyError:
+        logger.exception("Failed to load work queue")
+        return [], "We couldn't load the queue items. Please refresh the page."
+
+
+async def _render_admin_queue(
+    request: Request,
+    *,
+    show_processed: bool,
+    success: Optional[str],
+    error: Optional[str],
+    status_code: int = status.HTTP_200_OK,
+) -> Response:
+    queue_items, load_error = await _load_queue_items(show_processed)
+    error_messages = [msg for msg in (error, load_error) if msg]
+    combined_error = "; ".join(error_messages) if error_messages else None
+    return templates.TemplateResponse(
+        "admin_queue.html",
+        {
+            "request": request,
+            "queue_items": queue_items,
+            "show_processed": show_processed,
+            "success": success,
+            "error": combined_error,
+            "queue_limit": QUEUE_PAGE_LIMIT,
+        },
+        status_code=status_code,
+    )
+
+
+def _build_queue_redirect(request: Request, params: Dict[str, str]) -> str:
+    base_url = str(request.url_for("admin_queue"))
+    if params:
+        return f"{base_url}?{urlencode(params)}"
+    return base_url
+
+
 @app.get("/id={unique_id}", response_class=HTMLResponse)
 async def get_badge(
     request: Request,
@@ -74,7 +152,7 @@ async def get_badge(
 ) -> Response:
     try:
         profile = await db.fetch_profile(unique_id)
-    except PostgresError as exc:
+    except SQLAlchemyError:
         logger.exception("Failed to load badge %s", unique_id)
         return templates.TemplateResponse(
             "selection.html",
@@ -117,7 +195,7 @@ async def post_badge(
 ) -> Response:
     try:
         profile = await db.fetch_profile(unique_id)
-    except PostgresError:
+    except SQLAlchemyError:
         logger.exception("Failed to load badge %s", unique_id)
         return templates.TemplateResponse(
             "selection.html",
@@ -166,7 +244,7 @@ async def post_badge(
             image_base64=selected_image["image_base64"],
             image_mime_type=selected_image.get("image_mime_type") or "image/png",
         )
-    except PostgresError:
+    except SQLAlchemyError:
         logger.exception("Failed to enqueue selection for %s", unique_id)
         return templates.TemplateResponse(
             "selection.html",
@@ -184,13 +262,216 @@ async def post_badge(
     return RedirectResponse(redirect_url, status_code=status.HTTP_303_SEE_OTHER)
 
 
+@app.get("/admin/upload", response_class=HTMLResponse)
+async def admin_upload_form(
+    request: Request,
+    image_label: Optional[str] = None,
+    success: Optional[str] = None,
+    error: Optional[str] = None,
+    credentials: HTTPBasicCredentials = Depends(verify_credentials),
+) -> Response:
+    form_data = {
+        "image_label": image_label or "",
+    }
+    return await _render_admin_upload(
+        request,
+        form_data,
+        success=success,
+        error=error,
+    )
+
+
+@app.post("/admin/upload", response_class=HTMLResponse)
+async def admin_upload_submit(
+    request: Request,
+    image_label: str = Form(...),
+    image_file: UploadFile = File(...),
+    credentials: HTTPBasicCredentials = Depends(verify_credentials),
+) -> Response:
+    image_label = image_label.strip()
+    form_data = {"image_label": image_label}
+
+    if not image_label:
+        return await _render_admin_upload(
+            request,
+            form_data,
+            success=None,
+            error="Image label is required.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        content = await image_file.read()
+    except Exception:
+        logger.exception("Failed to read uploaded file for %s", image_label)
+        return await _render_admin_upload(
+            request,
+            form_data,
+            success=None,
+            error="Could not read the uploaded file.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if not content:
+        return await _render_admin_upload(
+            request,
+            form_data,
+            success=None,
+            error="Uploaded file is empty.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    image_base64 = base64.b64encode(content).decode("ascii")
+    image_mime_type = image_file.content_type or "image/png"
+
+    try:
+        created = await db.store_available_image(
+            image_label=image_label,
+            image_base64=image_base64,
+            image_mime_type=image_mime_type,
+        )
+    except SQLAlchemyError:
+        logger.exception("Failed to store gallery image %s", image_label)
+        return await _render_admin_upload(
+            request,
+            form_data,
+            success=None,
+            error="Something went wrong while saving the image. Please try again.",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+    query_params = urlencode(
+        {
+            "success": "Badge image uploaded successfully."
+            if created
+            else "Badge image updated successfully.",
+            "image_label": image_label,
+        }
+    )
+    redirect_url = f"{request.url_for('admin_upload_form')}?{query_params}"
+    return RedirectResponse(redirect_url, status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/admin/upload/delete", response_class=HTMLResponse)
+async def admin_delete_image(
+    request: Request,
+    image_label: str = Form(...),
+    credentials: HTTPBasicCredentials = Depends(verify_credentials),
+) -> Response:
+    image_label = image_label.strip()
+    if not image_label:
+        query_params = urlencode({"error": "Image label is required to delete an image."})
+        redirect_url = f"{request.url_for('admin_upload_form')}?{query_params}"
+        return RedirectResponse(redirect_url, status_code=status.HTTP_303_SEE_OTHER)
+
+    try:
+        deleted = await db.delete_available_image(image_label)
+    except SQLAlchemyError:
+        logger.exception("Failed to delete gallery image %s", image_label)
+        return await _render_admin_upload(
+            request,
+            {"image_label": ""},
+            success=None,
+            error="Something went wrong while deleting the image. Please try again.",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+    query_params = (
+        {"success": "Badge image deleted successfully."}
+        if deleted
+        else {"error": "The requested image could not be found."}
+    )
+    redirect_url = f"{request.url_for('admin_upload_form')}?{urlencode(query_params)}"
+    return RedirectResponse(redirect_url, status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.get("/admin/queue", response_class=HTMLResponse)
+async def admin_queue(
+    request: Request,
+    show_processed: int = 0,
+    success: Optional[str] = None,
+    error: Optional[str] = None,
+    credentials: HTTPBasicCredentials = Depends(verify_credentials),
+) -> Response:
+    include_processed = bool(show_processed)
+    return await _render_admin_queue(
+        request,
+        show_processed=include_processed,
+        success=success,
+        error=error,
+    )
+
+
+@app.post("/admin/queue/mark", response_class=HTMLResponse)
+async def admin_queue_mark(
+    request: Request,
+    work_id: int = Form(...),
+    show_processed: Optional[str] = Form("0"),
+    credentials: HTTPBasicCredentials = Depends(verify_credentials),
+) -> Response:
+    include_processed = show_processed == "1"
+    try:
+        result = await db.mark_work_item_processed(work_id)
+    except SQLAlchemyError:
+        logger.exception("Failed to mark work item %s as processed", work_id)
+        return await _render_admin_queue(
+            request,
+            show_processed=include_processed,
+            success=None,
+            error="Something went wrong while updating the work item. Please try again.",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+    if result == "marked":
+        params: Dict[str, str] = {"success": "Work item marked as processed."}
+    elif result == "already_processed":
+        params = {"error": "This work item is already marked as processed."}
+    else:
+        params = {"error": "The requested work item could not be found."}
+    if include_processed:
+        params["show_processed"] = "1"
+    redirect_url = _build_queue_redirect(request, params)
+    return RedirectResponse(redirect_url, status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/admin/queue/delete", response_class=HTMLResponse)
+async def admin_queue_delete(
+    request: Request,
+    work_id: int = Form(...),
+    show_processed: Optional[str] = Form("0"),
+    credentials: HTTPBasicCredentials = Depends(verify_credentials),
+) -> Response:
+    include_processed = show_processed == "1"
+    try:
+        deleted = await db.delete_work_item(work_id)
+    except SQLAlchemyError:
+        logger.exception("Failed to delete work item %s", work_id)
+        return await _render_admin_queue(
+            request,
+            show_processed=include_processed,
+            success=None,
+            error="Something went wrong while deleting the work item. Please try again.",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+    params: Dict[str, str]
+    if deleted:
+        params = {"success": "Work item deleted."}
+    else:
+        params = {"error": "The requested work item could not be found."}
+    if include_processed:
+        params["show_processed"] = "1"
+    redirect_url = _build_queue_redirect(request, params)
+    return RedirectResponse(redirect_url, status_code=status.HTTP_303_SEE_OTHER)
+
+
 @app.get("/get-work", response_class=JSONResponse)
 async def get_work(
     credentials: HTTPBasicCredentials = Depends(verify_credentials),
 ) -> Response:
     try:
         work_item = await db.get_oldest_work()
-    except PostgresError:
+    except SQLAlchemyError:
         logger.exception("Failed to fetch work item")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

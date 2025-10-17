@@ -1,22 +1,22 @@
 version: "3.9"
 
 services:
-  app:
-    build:
-      context: .
-    image: phreaknic26-badge-server:latest
-    restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
-    environment:
-      DATABASE_URL: postgresql://badge_user:badge_pass@db:5432/badge_db
-      WORK_BASIC_AUTH_USERNAME: queue_worker
-      WORK_BASIC_AUTH_PASSWORD: super-secret-password
-      DB_POOL_MIN_SIZE: 1
-      DB_POOL_MAX_SIZE: 10
-    ports:
-      - "8000:8000"
+#  app:
+#    build:
+#      context: .
+#    image: phreaknic26-badge-server:latest
+#    restart: unless-stopped
+#    depends_on:
+#      db:
+#        condition: service_healthy
+#    environment:
+#      DATABASE_URL: postgresql://badge_user:badge_pass@db:5432/badge_db
+#      WORK_BASIC_AUTH_USERNAME: queue_worker
+#      WORK_BASIC_AUTH_PASSWORD: super-secret-password
+#      DB_POOL_MIN_SIZE: 1
+#      DB_POOL_MAX_SIZE: 10
+#    ports:
+#      - "8000:8000"
 
   db:
     image: postgres:15
@@ -26,9 +26,14 @@ services:
       POSTGRES_USER: badge_user
       POSTGRES_PASSWORD: badge_pass
     volumes:
-      - ./pgdata:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
+    ports:
+      - "5432:5432"
+
+volumes:
+  pgdata:

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Work Queue</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+</head>
+<body>
+    <main class="container">
+        <header>
+            <h1>Work Queue</h1>
+            <p>Review and manage badge print requests awaiting processing.</p>
+        </header>
+
+        {% if success %}
+            <div class="alert success" role="status">
+                {{ success }}
+            </div>
+        {% endif %}
+        {% if error %}
+            <div class="alert error" role="alert">
+                {{ error }}
+            </div>
+        {% endif %}
+
+        <section class="queue-section">
+            <div class="queue-controls">
+                <div>
+                    {% if show_processed %}
+                        <a class="secondary" href="{{ url_for('admin_queue') }}">Hide processed items</a>
+                    {% else %}
+                        <a class="secondary" href="{{ url_for('admin_queue') }}?show_processed=1">Show processed items</a>
+                    {% endif %}
+                </div>
+                <p class="queue-hint">Showing up to {{ queue_limit }} recent item{{ '' if queue_limit == 1 else 's' }}.</p>
+            </div>
+
+            {% if queue_items %}
+                <div class="queue-table-wrapper">
+                    <table class="queue-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">ID</th>
+                                <th scope="col">Details</th>
+                                <th scope="col">Preview</th>
+                                <th scope="col">Status</th>
+                                <th scope="col">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in queue_items %}
+                                <tr>
+                                    <td data-label="ID">#{{ item.id }}</td>
+                                    <td data-label="Details">
+                                        <div class="queue-meta">
+                                            <strong>{{ item.name }}</strong>
+                                            <span class="queue-meta__line">Badge: {{ item.unique_id }}</span>
+                                            <span class="queue-meta__line">Image: {{ item.image_label }}</span>
+                                        </div>
+                                    </td>
+                                    <td data-label="Preview">
+                                        <div class="queue-preview">
+                                            <img src="{{ item.image_data_uri }}" alt="{{ item.image_label }}">
+                                        </div>
+                                    </td>
+                                    <td data-label="Status">
+                                        <div class="queue-status">
+                                            <span class="status-pill {{ 'status-processed' if item.is_processed else 'status-pending' }}">
+                                                {{ 'Processed' if item.is_processed else 'Pending' }}
+                                            </span>
+                                            <span class="queue-timestamp">
+                                                <strong>Created:</strong>
+                                                {{ item.created_at or '—' }}
+                                            </span>
+                                            {% if item.processed_at %}
+                                                <span class="queue-timestamp">
+                                                    <strong>Processed:</strong>
+                                                    {{ item.processed_at }}
+                                                </span>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                    <td data-label="Actions">
+                                        <div class="queue-actions">
+                                            {% if not item.is_processed %}
+                                                <form method="post" action="{{ url_for('admin_queue_mark') }}">
+                                                    <input type="hidden" name="work_id" value="{{ item.id }}">
+                                                    {% if show_processed %}
+                                                        <input type="hidden" name="show_processed" value="1">
+                                                    {% endif %}
+                                                    <button type="submit" class="secondary">Mark processed</button>
+                                                </form>
+                                            {% endif %}
+                                            <form method="post" action="{{ url_for('admin_queue_delete') }}">
+                                                <input type="hidden" name="work_id" value="{{ item.id }}">
+                                                {% if show_processed %}
+                                                    <input type="hidden" name="show_processed" value="1">
+                                                {% endif %}
+                                                <button type="submit" class="danger">Delete</button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="empty-state">
+                    {% if show_processed %}
+                        No work items found.
+                    {% else %}
+                        No pending work items in the queue.
+                    {% endif %}
+                </p>
+            {% endif %}
+        </section>
+    </main>
+</body>
+</html>

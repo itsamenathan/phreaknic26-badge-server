@@ -1,12 +1,15 @@
 {
   "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.16.0/.schema/devbox.schema.json",
   "packages": [
-    "python3@latest",
-    "uv@latest"
+    "python3@3.12",
+    "uv@latest",
+    "gcc@latest",
+    "stdenv.cc.cc.lib"
   ],
   "shell": {
     "init_hook": [
-      "echo 'Welcome to devbox!' > /dev/null"
+      "echo 'Welcome to devbox!' > /dev/null",
+      "export LD_LIBRARY_PATH=./.devbox/nix/profile/default/lib"
     ],
     "scripts": {
       "test": [
