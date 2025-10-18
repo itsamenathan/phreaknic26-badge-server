@@ -70,4 +70,6 @@ async def get_work_item(_credentials=Depends(verify_credentials)) -> Response:
         )
     if work_item is None:
         return Response(status_code=status.HTTP_204_NO_CONTENT)
+    work_item = dict(work_item)
+    work_item["badge_id"] = work_item.pop("unique_id")
     return JSONResponse(work_item)

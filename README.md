@@ -121,7 +121,7 @@ CREATE INDEX idx_work_queue_processed_created
   Returns the oldest unprocessed queue entry:
   ```json
   {
-    "unique_id": "ABC123",
+    "badge_id": "ABC123",
     "name": "Jane Doe",
     "image_label": "Badge Art 1",
     "image_base64": "<base64 payload>",
