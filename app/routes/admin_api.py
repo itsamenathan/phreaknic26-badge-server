@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict
+from typing import Any
 
-from fastapi import APIRouter, Body, Depends, status
+from fastapi import APIRouter, Depends, status
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field, field_validator
+from sqlalchemy.exc import SQLAlchemyError
 from starlette.responses import Response
 
-from sqlalchemy.exc import SQLAlchemyError
-
+from ..constants import MAX_BADGE_ID_LENGTH, MAX_BADGE_NAME_LENGTH
 from ..db import db
 from ..dependencies import verify_credentials
 
@@ -17,19 +18,25 @@ router = APIRouter(prefix="/admin/api", tags=["admin-api"])
 logger = logging.getLogger(__name__)
 
 
+class BadgePayload(BaseModel):
+    unique_id: str = Field(..., min_length=1, max_length=MAX_BADGE_ID_LENGTH)
+    name: str = Field(..., min_length=1, max_length=MAX_BADGE_NAME_LENGTH)
+
+    @field_validator("unique_id", "name", mode="before")
+    @classmethod
+    def strip_whitespace(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            value = value.strip()
+        return value
+
+
 @router.post("/badges", response_class=JSONResponse)
 async def admin_create_badge_api(
-    payload: Dict[str, Any] = Body(...),
+    payload: BadgePayload,
     _credentials=Depends(verify_credentials),
 ) -> Response:
-    unique_id = (payload.get("unique_id") or "").strip()
-    name = (payload.get("name") or "").strip()
-
-    if not unique_id or not name:
-        return JSONResponse(
-            {"detail": "Both unique_id and name are required."},
-            status_code=status.HTTP_400_BAD_REQUEST,
-        )
+    unique_id = payload.unique_id
+    name = payload.name
 
     try:
         outcome = await db.create_or_update_badge(unique_id=unique_id, name=name)

@@ -11,6 +11,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from ..db import db
 from ..dependencies import templates
+from ..constants import MAX_BADGE_ID_LENGTH, MAX_IMAGE_LABEL_LENGTH
 
 
 router = APIRouter(tags=["public"])
@@ -27,6 +28,7 @@ async def badge_lookup_form(
             "request": request,
             "form": {"unique_id": ""},
             "error": None,
+            "MAX_BADGE_ID_LENGTH": MAX_BADGE_ID_LENGTH,
         },
     )
 
@@ -44,6 +46,19 @@ async def badge_lookup_submit(
                 "request": request,
                 "form": {"unique_id": unique_id},
                 "error": "Please enter a badge ID.",
+                "MAX_BADGE_ID_LENGTH": MAX_BADGE_ID_LENGTH,
+            },
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if len(unique_id) > MAX_BADGE_ID_LENGTH:
+        return templates.TemplateResponse(
+            "index.html",
+            {
+                "request": request,
+                "form": {"unique_id": unique_id},
+                "error": f"Badge ID must be {MAX_BADGE_ID_LENGTH} characters or fewer.",
+                "MAX_BADGE_ID_LENGTH": MAX_BADGE_ID_LENGTH,
             },
             status_code=status.HTTP_400_BAD_REQUEST,
         )
@@ -58,6 +73,7 @@ async def badge_lookup_submit(
                 "request": request,
                 "form": {"unique_id": unique_id},
                 "error": "Something went wrong while looking up your badge. Please try again.",
+                "MAX_BADGE_ID_LENGTH": MAX_BADGE_ID_LENGTH,
             },
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
@@ -69,6 +85,7 @@ async def badge_lookup_submit(
                 "request": request,
                 "form": {"unique_id": unique_id},
                 "error": "Badge not found. Please check the ID and try again.",
+                "MAX_BADGE_ID_LENGTH": MAX_BADGE_ID_LENGTH,
             },
             status_code=status.HTTP_404_NOT_FOUND,
         )
@@ -86,6 +103,19 @@ async def get_badge(
     sent: Optional[str] = None,
     error: Optional[str] = None,
 ) -> Response:
+    unique_id = unique_id.strip()
+    if len(unique_id) > MAX_BADGE_ID_LENGTH:
+        return templates.TemplateResponse(
+            "selection.html",
+            {
+                "request": request,
+                "profile": None,
+                "error": "Badge not found",
+                "sent": False,
+            },
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+
     try:
         profile = await db.fetch_profile(unique_id)
     except SQLAlchemyError:
@@ -127,8 +157,21 @@ async def get_badge(
 async def post_badge(
     request: Request,
     unique_id: str,
-    image_label: str = Form(...),
+    image_label: str = Form(..., max_length=MAX_IMAGE_LABEL_LENGTH),
 ) -> Response:
+    unique_id = unique_id.strip()
+    if len(unique_id) > MAX_BADGE_ID_LENGTH:
+        return templates.TemplateResponse(
+            "selection.html",
+            {
+                "request": request,
+                "profile": None,
+                "error": "Badge not found",
+                "sent": False,
+            },
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+
     try:
         profile = await db.fetch_profile(unique_id)
     except SQLAlchemyError:

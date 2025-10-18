@@ -27,7 +27,7 @@
         <form method="post" action="{{ url_for('admin_images_upload') }}" enctype="multipart/form-data" class="admin-form">
             <label class="field">
                 <span>Image Label</span>
-                <input type="text" name="image_label" required value="{{ form.image_label }}">
+                <input type="text" name="image_label" required value="{{ form.image_label }}" maxlength="{{ MAX_IMAGE_LABEL_LENGTH }}">
             </label>
             <label class="field">
                 <span>Image File</span>

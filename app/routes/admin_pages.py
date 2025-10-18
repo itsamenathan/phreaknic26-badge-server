@@ -11,6 +11,11 @@ from starlette.responses import Response
 
 from sqlalchemy.exc import SQLAlchemyError
 
+from ..constants import (
+    MAX_BADGE_ID_LENGTH,
+    MAX_BADGE_NAME_LENGTH,
+    MAX_IMAGE_LABEL_LENGTH,
+)
 from ..db import db
 from ..dependencies import templates, verify_credentials
 
@@ -53,6 +58,7 @@ async def _render_admin_upload(
             "success": success,
             "error": combined_error,
             "images": images,
+            "MAX_IMAGE_LABEL_LENGTH": MAX_IMAGE_LABEL_LENGTH,
         },
         status_code=status_code,
     )
@@ -84,6 +90,8 @@ async def _render_admin_create_badge(
             "success": success,
             "error": combined_error,
             "badges": badges,
+            "MAX_BADGE_ID_LENGTH": MAX_BADGE_ID_LENGTH,
+            "MAX_BADGE_NAME_LENGTH": MAX_BADGE_NAME_LENGTH,
         },
         status_code=status_code,
     )
@@ -148,7 +156,7 @@ async def admin_images_form(
     error: Optional[str] = None,
 ) -> Response:
     form_data = {
-        "image_label": image_label or "",
+        "image_label": (image_label or "")[:MAX_IMAGE_LABEL_LENGTH],
     }
     return await _render_admin_upload(
         request,
@@ -161,7 +169,7 @@ async def admin_images_form(
 @router.post("/images", response_class=HTMLResponse)
 async def admin_images_upload(
     request: Request,
-    image_label: str = Form(...),
+    image_label: str = Form(..., max_length=MAX_IMAGE_LABEL_LENGTH),
     image_file: UploadFile = File(...),
 ) -> Response:
     image_label = image_label.strip()
@@ -173,6 +181,15 @@ async def admin_images_upload(
             form_data,
             success=None,
             error="Image label is required.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if len(image_label) > MAX_IMAGE_LABEL_LENGTH:
+        return await _render_admin_upload(
+            request,
+            form_data,
+            success=None,
+            error=f"Image label must be {MAX_IMAGE_LABEL_LENGTH} characters or fewer.",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
@@ -231,11 +248,21 @@ async def admin_images_upload(
 @router.post("/images/delete", response_class=HTMLResponse)
 async def admin_images_delete(
     request: Request,
-    image_label: str = Form(...),
+    image_label: str = Form(..., max_length=MAX_IMAGE_LABEL_LENGTH),
 ) -> Response:
     image_label = image_label.strip()
     if not image_label:
         query_params = urlencode({"error": "Image label is required to delete an image."})
+        redirect_url = f"{request.url_for('admin_images_form')}?{query_params}"
+        return RedirectResponse(redirect_url, status_code=status.HTTP_303_SEE_OTHER)
+
+    if len(image_label) > MAX_IMAGE_LABEL_LENGTH:
+        query_params = urlencode(
+            {
+                "error": f"Image label must be {MAX_IMAGE_LABEL_LENGTH} characters or fewer.",
+                "image_label": "",
+            }
+        )
         redirect_url = f"{request.url_for('admin_images_form')}?{query_params}"
         return RedirectResponse(redirect_url, status_code=status.HTTP_303_SEE_OTHER)
 
@@ -269,8 +296,8 @@ async def admin_badges_form(
     error: Optional[str] = None,
 ) -> Response:
     form_data = {
-        "unique_id": unique_id or "",
-        "name": name or "",
+        "unique_id": (unique_id or "")[:MAX_BADGE_ID_LENGTH],
+        "name": (name or "")[:MAX_BADGE_NAME_LENGTH],
     }
     return await _render_admin_create_badge(
         request,
@@ -283,8 +310,8 @@ async def admin_badges_form(
 @router.post("/badges", response_class=HTMLResponse)
 async def admin_badges_submit(
     request: Request,
-    unique_id: str = Form(...),
-    name: str = Form(...),
+    unique_id: str = Form(..., max_length=MAX_BADGE_ID_LENGTH),
+    name: str = Form(..., max_length=MAX_BADGE_NAME_LENGTH),
 ) -> Response:
     unique_id = unique_id.strip()
     name = name.strip()
@@ -296,6 +323,24 @@ async def admin_badges_submit(
             form_data,
             success=None,
             error="Both badge ID and name are required.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if len(unique_id) > MAX_BADGE_ID_LENGTH:
+        return await _render_admin_create_badge(
+            request,
+            form_data,
+            success=None,
+            error=f"Badge ID must be {MAX_BADGE_ID_LENGTH} characters or fewer.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if len(name) > MAX_BADGE_NAME_LENGTH:
+        return await _render_admin_create_badge(
+            request,
+            form_data,
+            success=None,
+            error=f"Name must be {MAX_BADGE_NAME_LENGTH} characters or fewer.",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
