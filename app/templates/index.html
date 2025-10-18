@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Badge Lookup</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+</head>
+<body>
+    <main class="container">
+        <header>
+            <h1>Find Your Badge</h1>
+            <p>Enter your badge ID to review available artwork.</p>
+        </header>
+
+        {% if error %}
+            <div class="alert error" role="alert">
+                {{ error }}
+            </div>
+        {% endif %}
+
+        <form method="post" class="lookup-form">
+            <label class="field">
+                <span>Badge ID</span>
+                <input type="text" name="unique_id" value="{{ form.unique_id }}" required autofocus>
+            </label>
+            <button type="submit" class="primary">Continue</button>
+        </form>
+    </main>
+</body>
+</html>

@@ -24,7 +24,7 @@
             </div>
         {% endif %}
 
-        <form method="post" enctype="multipart/form-data" class="admin-form">
+        <form method="post" action="{{ url_for('admin_images_upload') }}" enctype="multipart/form-data" class="admin-form">
             <label class="field">
                 <span>Image Label</span>
                 <input type="text" name="image_label" required value="{{ form.image_label }}">
@@ -50,7 +50,7 @@
                             </div>
                             <div class="admin-card__meta">
                                 <span class="admin-card__label">{{ image.image_label }}</span>
-                                <form method="post" action="{{ url_for('admin_delete_image') }}">
+                                <form method="post" action="{{ url_for('admin_images_delete') }}">
                                     <input type="hidden" name="image_label" value="{{ image.image_label }}">
                                     <button type="submit" class="danger">Delete</button>
                                 </form>

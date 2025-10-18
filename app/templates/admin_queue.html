@@ -28,9 +28,9 @@
             <div class="queue-controls">
                 <div>
                     {% if show_processed %}
-                        <a class="secondary" href="{{ url_for('admin_queue') }}">Hide processed items</a>
+                        <a class="secondary" href="{{ url_for('admin_work_items') }}">Hide processed items</a>
                     {% else %}
-                        <a class="secondary" href="{{ url_for('admin_queue') }}?show_processed=1">Show processed items</a>
+                        <a class="secondary" href="{{ url_for('admin_work_items') }}?show_processed=1">Show processed items</a>
                     {% endif %}
                 </div>
                 <p class="queue-hint">Showing up to {{ queue_limit }} recent item{{ '' if queue_limit == 1 else 's' }}.</p>
@@ -84,16 +84,14 @@
                                     <td data-label="Actions">
                                         <div class="queue-actions">
                                             {% if not item.is_processed %}
-                                                <form method="post" action="{{ url_for('admin_queue_mark') }}">
-                                                    <input type="hidden" name="work_id" value="{{ item.id }}">
+                                                <form method="post" action="{{ url_for('admin_work_items_mark', work_id=item.id) }}">
                                                     {% if show_processed %}
                                                         <input type="hidden" name="show_processed" value="1">
                                                     {% endif %}
                                                     <button type="submit" class="secondary">Mark processed</button>
                                                 </form>
                                             {% endif %}
-                                            <form method="post" action="{{ url_for('admin_queue_delete') }}">
-                                                <input type="hidden" name="work_id" value="{{ item.id }}">
+                                            <form method="post" action="{{ url_for('admin_work_items_delete', work_id=item.id) }}">
                                                 {% if show_processed %}
                                                     <input type="hidden" name="show_processed" value="1">
                                                 {% endif %}

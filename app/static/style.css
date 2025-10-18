@@ -63,6 +63,14 @@ p {
     gap: 1.5rem;
 }
 
+.lookup-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    max-width: 420px;
+    margin: 0 auto;
+}
+
 .admin-form {
     display: flex;
     flex-direction: column;

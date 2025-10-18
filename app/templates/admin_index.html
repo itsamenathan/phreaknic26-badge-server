@@ -14,15 +14,15 @@
         </header>
 
         <section class="admin-links">
-            <a class="admin-link-card" href="{{ url_for('admin_create_badge_form') }}">
+            <a class="admin-link-card" href="{{ url_for('admin_badges_form') }}">
                 <h2>Create Badges</h2>
                 <p>Register badge IDs and attendee names before sending out lookup links.</p>
             </a>
-            <a class="admin-link-card" href="{{ url_for('admin_upload_form') }}">
+            <a class="admin-link-card" href="{{ url_for('admin_images_form') }}">
                 <h2>Manage Artwork</h2>
                 <p>Upload new badge artwork or clean up existing images shown to attendees.</p>
             </a>
-            <a class="admin-link-card" href="{{ url_for('admin_queue') }}">
+            <a class="admin-link-card" href="{{ url_for('admin_work_items') }}">
                 <h2>Review Queue</h2>
                 <p>Check pending print jobs, mark them processed, or delete unwanted entries.</p>
             </a>
