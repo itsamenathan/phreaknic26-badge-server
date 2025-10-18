@@ -9,8 +9,8 @@
 :root {
     color-scheme: dark;
     font-family: 'IBMBIOS', "IBM Plex Mono", "Fira Code", monospace;
-    line-height: 1.6;
-    font-size: 16px;
+    line-height: 1.45;
+    font-size: 14px;
     background-color: #050805;
 }
 
@@ -23,6 +23,7 @@ body {
     color: #dafee6;
     text-shadow: 0 0 4px rgba(48, 255, 152, 0.25);
     font-family: inherit;
+    overflow-x: hidden;
 }
 
 button,
@@ -43,6 +44,10 @@ select {
     overflow: hidden;
 }
 
+.container--wide {
+    width: min(1280px, 96vw);
+}
+
 .container::before {
     content: "";
     position: absolute;
@@ -58,16 +63,16 @@ header {
 
 h1 {
     margin: 0;
-    font-size: clamp(1.9rem, 3vw, 2.8rem);
+    font-size: clamp(1.6rem, 2.4vw, 2.2rem);
     color: #30ff98;
     text-transform: uppercase;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.08em;
 }
 
 p {
     margin: 0.5rem 0 0;
     color: #9df7c5;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.03em;
 }
 
 .alert {
@@ -157,7 +162,7 @@ p {
 
 .admin-link-card h2 {
     margin: 0;
-    font-size: 1.25rem;
+    font-size: 1.05rem;
     color: #30ff98;
 }
 
@@ -212,6 +217,7 @@ p {
 .admin-card__label {
     font-weight: 600;
     color: #8ffcbb;
+    font-size: 0.95rem;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -261,6 +267,7 @@ p {
     padding: 0.6rem 1.4rem;
     border-radius: 999px;
     font-weight: 600;
+    font-size: 0.92rem;
     cursor: pointer;
     transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
     text-decoration: none;
@@ -309,7 +316,7 @@ p {
 .queue-hint {
     margin: 0;
     color: #8cf6be;
-    font-size: 0.95rem;
+    font-size: 0.82rem;
 }
 
 .badge-table-wrapper,
@@ -322,28 +329,31 @@ p {
 .queue-table {
     width: 100%;
     border-collapse: collapse;
-    min-width: 720px;
     background: rgba(6, 18, 8, 0.92);
     border-radius: 14px;
     overflow: hidden;
     box-shadow: 0 12px 32px rgba(0, 0, 0, 0.38);
     border: 1px solid rgba(48, 255, 152, 0.16);
+    table-layout: fixed;
 }
 
 .badge-table thead,
 .queue-table thead {
     background: rgba(48, 255, 152, 0.08);
+    font-size: 0.9rem;
 }
 
 .badge-table th,
 .badge-table td,
 .queue-table th,
 .queue-table td {
-    padding: 0.75rem 1rem;
+    padding: 0.6rem 0.75rem;
     text-align: left;
     border-bottom: 1px solid rgba(48, 255, 152, 0.12);
     vertical-align: top;
     color: #bdfcd7;
+    overflow-wrap: anywhere;
+    font-size: 0.92rem;
 }
 
 .badge-table tbody tr:last-child td,
@@ -374,13 +384,13 @@ p {
 }
 
 .queue-meta__line {
-    font-size: 0.9rem;
+    font-size: 0.82rem;
     color: #8ff7c1;
 }
 
 .queue-preview {
-    width: 120px;
-    height: 120px;
+    width: 110px;
+    height: 110px;
     border-radius: 12px;
     background: rgba(12, 32, 18, 0.88);
     display: grid;
@@ -408,7 +418,7 @@ p {
     padding: 0.25rem 0.75rem;
     border-radius: 999px;
     font-weight: 600;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
 }
 
 .status-pending {
@@ -422,7 +432,7 @@ p {
 }
 
 .queue-timestamp {
-    font-size: 0.85rem;
+    font-size: 0.78rem;
     color: #8af4bc;
 }
 
@@ -524,6 +534,41 @@ p {
     grid-column: 1 / -1;
     text-align: center;
     color: #78f3b3;
+}
+
+@media (max-width: 720px) {
+    body {
+        font-size: 15px;
+    }
+
+    .container {
+        padding: 1.6rem;
+    }
+
+    h1 {
+        letter-spacing: 0.08em;
+    }
+
+    .badge-table th,
+    .badge-table td,
+    .queue-table th,
+    .queue-table td {
+        padding: 0.6rem 0.75rem;
+    }
+
+    .queue-meta__line {
+        font-size: 0.85rem;
+    }
+
+    .queue-preview {
+        width: 100px;
+        height: 100px;
+    }
+
+    .secondary,
+    .primary {
+        padding: 0.55rem 1.1rem;
+    }
 }
 
 @media (max-width: 860px) {
