@@ -32,7 +32,14 @@ done
 echo "Database is ready."
 
 APP_CMD=()
-RELOAD_ARGS=(--reload --reload-dir app --host 0.0.0.0 --port 8000)
+RELOAD_ARGS=(
+    --reload
+    --reload-dir app
+    --host 0.0.0.0
+    --port 8000
+    --proxy-headers
+    --forwarded-allow-ips '*'
+)
 
 if command -v uv >/dev/null 2>&1; then
     APP_CMD=(uv run uvicorn app.main:app "${RELOAD_ARGS[@]}")

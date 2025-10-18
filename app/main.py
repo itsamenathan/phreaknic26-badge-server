@@ -19,7 +19,6 @@ app = FastAPI(title="PhreakNIC 26 Badge Server", default_response_class=HTMLResp
 static_dir = BASE_DIR / "static"
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
-
 async def startup_event() -> None:
     settings = get_settings()
     db.configure(settings)
