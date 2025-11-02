@@ -57,6 +57,8 @@
                                             <strong>{{ item.name }}</strong>
                                             <span class="queue-meta__line">Badge: {{ item.unique_id }}</span>
                                             <span class="queue-meta__line">Image: {{ item.image_label }}</span>
+                                            <span class="queue-meta__line">Color: {{ (item.image_color or 'black') | capitalize }}</span>
+                                            <span class="queue-meta__line">Font: {{ item.image_font or 'Awkward.ttf' }}</span>
                                         </div>
                                     </td>
                                     <td data-label="Preview">

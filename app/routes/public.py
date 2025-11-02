@@ -11,7 +11,12 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from ..db import db
 from ..dependencies import templates
-from ..constants import MAX_BADGE_ID_LENGTH, MAX_IMAGE_LABEL_LENGTH
+from ..constants import (
+    DEFAULT_IMAGE_COLOR,
+    DEFAULT_IMAGE_FONT,
+    MAX_BADGE_ID_LENGTH,
+    MAX_IMAGE_LABEL_LENGTH,
+)
 
 
 router = APIRouter(tags=["public"])
@@ -222,6 +227,8 @@ async def post_badge(
             image_label=selected_image["label"],
             image_base64=selected_image["image_base64"],
             image_mime_type=selected_image.get("image_mime_type") or "image/png",
+            image_color=selected_image.get("image_color") or DEFAULT_IMAGE_COLOR,
+            image_font=selected_image.get("image_font") or DEFAULT_IMAGE_FONT,
         )
     except SQLAlchemyError:
         logger.exception("Failed to enqueue selection for %s", unique_id)

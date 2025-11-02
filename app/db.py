@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from .config import Settings, get_settings
+from .constants import DEFAULT_IMAGE_COLOR, DEFAULT_IMAGE_FONT
 from .models import AvailableImage, Badge, Base, WorkQueue
 
 
@@ -107,6 +108,8 @@ class Database:
                     "label": image.image_label,
                     "image_base64": image.image_base64,
                     "image_mime_type": image.image_mime_type,
+                    "image_color": image.image_color or DEFAULT_IMAGE_COLOR,
+                    "image_font": image.image_font or DEFAULT_IMAGE_FONT,
                 }
                 for image in image_rows
             ]
@@ -124,6 +127,8 @@ class Database:
         image_label: str,
         image_base64: str,
         image_mime_type: Optional[str],
+        image_color: str,
+        image_font: str,
     ) -> None:
         async with self.session() as session:
             work_item = WorkQueue(
@@ -132,6 +137,8 @@ class Database:
                 image_label=image_label,
                 image_base64=image_base64,
                 image_mime_type=image_mime_type,
+                image_color=image_color or DEFAULT_IMAGE_COLOR,
+                image_font=image_font or DEFAULT_IMAGE_FONT,
             )
             session.add(work_item)
 
@@ -140,6 +147,8 @@ class Database:
         image_label: str,
         image_base64: str,
         image_mime_type: Optional[str],
+        image_color: str,
+        image_font: str,
     ) -> bool:
         async with self.session() as session:
             stmt = select(AvailableImage).where(AvailableImage.image_label == image_label)
@@ -150,12 +159,16 @@ class Database:
                     image_label=image_label,
                     image_base64=image_base64,
                     image_mime_type=image_mime_type,
+                    image_color=image_color or DEFAULT_IMAGE_COLOR,
+                    image_font=image_font or DEFAULT_IMAGE_FONT,
                 )
                 session.add(gallery_image)
                 created = True
             else:
                 gallery_image.image_base64 = image_base64
                 gallery_image.image_mime_type = image_mime_type
+                gallery_image.image_color = image_color or DEFAULT_IMAGE_COLOR
+                gallery_image.image_font = image_font or DEFAULT_IMAGE_FONT
 
         return created
 
@@ -170,6 +183,8 @@ class Database:
                 "image_label": image.image_label,
                 "image_base64": image.image_base64,
                 "image_mime_type": image.image_mime_type,
+                "image_color": image.image_color or DEFAULT_IMAGE_COLOR,
+                "image_font": image.image_font or DEFAULT_IMAGE_FONT,
             }
             for image in images
         ]
@@ -237,6 +252,8 @@ class Database:
                     "image_mime_type": mime_type,
                     "image_base64": item.image_base64,
                     "image_data_uri": f"data:{mime_type};base64,{item.image_base64}",
+                    "image_color": item.image_color or DEFAULT_IMAGE_COLOR,
+                    "image_font": item.image_font or DEFAULT_IMAGE_FONT,
                     "created_at": item.created_at.isoformat() if item.created_at else None,
                     "processed_at": item.processed_at.isoformat() if item.processed_at else None,
                     "is_processed": item.processed_at is not None,
@@ -291,6 +308,8 @@ class Database:
                 "image_label": work.image_label,
                 "image_base64": work.image_base64,
                 "image_mime_type": work.image_mime_type,
+                "image_color": work.image_color or DEFAULT_IMAGE_COLOR,
+                "image_font": work.image_font or DEFAULT_IMAGE_FONT,
                 "created_at": work.created_at.isoformat() if work.created_at else None,
             }
 
