@@ -36,7 +36,6 @@
                         <canvas class="name-overlay" id="name-overlay-canvas" aria-hidden="true"></canvas>
                     </div>
                     <p class="badge-instruction">Drag your name on the preview, then adjust the slider to resize it.</p>
-                    <p class="badge-coords" id="badge-coords" aria-live="polite"></p>
                 </div>
                 <div class="customization-controls">
                     <label class="field">
@@ -107,10 +106,10 @@
             const previewPlaceholder = document.getElementById('badge-preview-placeholder');
             const overlayCanvas = document.getElementById('name-overlay-canvas');
             const overlayCtx = overlayCanvas.getContext('2d');
-            const coordsOutput = document.getElementById('badge-coords');
 
             const PREVIEW_VISIBLE_CLASS = 'badge-preview__image--visible';
             const PREVIEW_MAX_WIDTH = 720;
+            const PREVIEW_SCALE = 3;
             const FONT_BASE_PATH = "{{ url_for('static', path='fonts/') }}";
             const fontCache = new Map();
 
@@ -152,9 +151,6 @@
                 previewImage.style.removeProperty('height');
                 overlayCanvas.style.display = 'none';
                 clearOverlayCanvas();
-                if (coordsOutput) {
-                    coordsOutput.textContent = '';
-                }
             }
 
             function setEditorEnabled(enabled) {
@@ -258,7 +254,8 @@
                 }
 
                 const parentWidth = badgeEditor.clientWidth || previewImage.naturalWidth;
-                const targetWidth = Math.min(PREVIEW_MAX_WIDTH, parentWidth, previewImage.naturalWidth);
+                const scaledWidth = previewImage.naturalWidth * PREVIEW_SCALE;
+                const targetWidth = Math.min(PREVIEW_MAX_WIDTH, parentWidth, scaledWidth);
                 const scale = targetWidth / previewImage.naturalWidth;
                 const displayWidth = Math.round(previewImage.naturalWidth * scale);
                 const displayHeight = Math.round(previewImage.naturalHeight * scale);
@@ -281,9 +278,6 @@
                 const rawY = displayY / currentScale;
                 textXInput.value = Math.round(rawX);
                 textYInput.value = Math.round(rawY);
-                if (coordsOutput) {
-                    coordsOutput.textContent = `Image coordinates: X ${textXInput.value}px, Y ${textYInput.value}px`;
-                }
             }
 
             function setOverlayPosition(displayX, displayY) {

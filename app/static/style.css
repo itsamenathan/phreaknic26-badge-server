@@ -408,6 +408,86 @@ p {
     max-width: 100%;
     max-height: 100%;
     object-fit: contain;
+    cursor: zoom-in;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.queue-preview img:hover {
+    transform: scale(1.05);
+    box-shadow: 0 18px 36px rgba(48, 255, 152, 0.25);
+}
+
+.lightbox-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+}
+
+.lightbox-overlay.is-visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.lightbox-content {
+    position: relative;
+    max-width: 95vw;
+    max-height: 90vh;
+    background: rgba(6, 22, 10, 0.95);
+    border-radius: 18px;
+    padding: 1.25rem 1.5rem 1.75rem;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba(48, 255, 152, 0.35);
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.lightbox-content img {
+    display: block;
+    border-radius: 12px;
+    width: auto;
+    height: auto;
+}
+
+.lightbox-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    color: #c9ffe1;
+    font-size: 0.9rem;
+}
+
+.lightbox-meta strong {
+    color: #30ff98;
+    letter-spacing: 0.05em;
+}
+
+.lightbox-close {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    background: rgba(48, 255, 152, 0.15);
+    border: 1px solid rgba(48, 255, 152, 0.45);
+    border-radius: 999px;
+    color: #b9ffd6;
+    font-weight: 600;
+    padding: 0.35rem 0.9rem;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.lightbox-close:hover,
+.lightbox-close:focus-visible {
+    transform: translateY(-1px);
+    box-shadow: 0 12px 24px rgba(48, 255, 152, 0.35);
+    outline: none;
 }
 
 .queue-status {
@@ -679,14 +759,6 @@ p {
     font-size: 0.85rem;
     color: #8cf6be;
     text-align: center;
-}
-
-.badge-coords {
-    margin: 0;
-    font-size: 0.78rem;
-    color: #78f3b3;
-    text-align: center;
-    letter-spacing: 0.05em;
 }
 
 .thumbnail {
