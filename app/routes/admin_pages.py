@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import logging
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlencode
 
@@ -12,9 +13,13 @@ from starlette.responses import Response
 from sqlalchemy.exc import SQLAlchemyError
 
 from ..constants import (
+    DEFAULT_IMAGE_COLOR,
+    DEFAULT_IMAGE_FONT,
     MAX_BADGE_ID_LENGTH,
     MAX_BADGE_NAME_LENGTH,
     MAX_IMAGE_LABEL_LENGTH,
+    IMAGE_COLOR_CHOICES,
+    FONT_FILE_EXTENSIONS,
 )
 from ..db import db
 from ..dependencies import templates, verify_credentials
@@ -28,6 +33,32 @@ router = APIRouter(
 
 logger = logging.getLogger(__name__)
 QUEUE_PAGE_LIMIT = 50
+FONTS_DIR = (Path(__file__).resolve().parent.parent / "static" / "fonts").resolve()
+
+
+def _load_font_choices() -> Tuple[List[str], Optional[str]]:
+    try:
+        fonts_path = FONTS_DIR
+        choices = []
+        if fonts_path.exists():
+            entries = {
+                entry.name
+                for entry in fonts_path.iterdir()
+                if (
+                    entry.is_file()
+                    and not entry.name.startswith(".")
+                    and entry.suffix.lower() in FONT_FILE_EXTENSIONS
+                )
+            }
+            choices = sorted(entries, key=str.lower)
+        if not choices:
+            choices = [DEFAULT_IMAGE_FONT]
+        if DEFAULT_IMAGE_FONT not in choices:
+            choices.insert(0, DEFAULT_IMAGE_FONT)
+        return choices, None
+    except OSError:
+        logger.exception("Failed to read font directory %s", FONTS_DIR)
+        return [DEFAULT_IMAGE_FONT], "We couldn't load the font options. Please refresh the page."
 
 
 async def _load_available_images() -> Tuple[List[Dict[str, Optional[str]]], Optional[str]]:
@@ -47,18 +78,29 @@ async def _render_admin_upload(
     error: Optional[str],
     status_code: int = status.HTTP_200_OK,
 ) -> Response:
+    full_form_data = {
+        "image_label": "",
+        "image_color": DEFAULT_IMAGE_COLOR,
+        "image_font": DEFAULT_IMAGE_FONT,
+        **form_data,
+    }
     images, load_error = await _load_available_images()
-    error_messages = [msg for msg in (error, load_error) if msg]
+    font_choices, font_error = _load_font_choices()
+    if full_form_data["image_font"] not in font_choices:
+        full_form_data["image_font"] = font_choices[0]
+    error_messages = [msg for msg in (error, load_error, font_error) if msg]
     combined_error = "; ".join(error_messages) if error_messages else None
     return templates.TemplateResponse(
         "admin_upload.html",
         {
             "request": request,
-            "form": form_data,
+            "form": full_form_data,
             "success": success,
             "error": combined_error,
             "images": images,
             "MAX_IMAGE_LABEL_LENGTH": MAX_IMAGE_LABEL_LENGTH,
+            "IMAGE_COLOR_CHOICES": IMAGE_COLOR_CHOICES,
+            "IMAGE_FONT_CHOICES": font_choices,
         },
         status_code=status_code,
     )
@@ -157,6 +199,8 @@ async def admin_images_form(
 ) -> Response:
     form_data = {
         "image_label": (image_label or "")[:MAX_IMAGE_LABEL_LENGTH],
+        "image_color": DEFAULT_IMAGE_COLOR,
+        "image_font": DEFAULT_IMAGE_FONT,
     }
     return await _render_admin_upload(
         request,
@@ -171,9 +215,19 @@ async def admin_images_upload(
     request: Request,
     image_label: str = Form(..., max_length=MAX_IMAGE_LABEL_LENGTH),
     image_file: UploadFile = File(...),
+    image_color: str = Form(...),
+    image_font: str = Form(...),
 ) -> Response:
     image_label = image_label.strip()
-    form_data = {"image_label": image_label}
+    image_color = image_color.strip().lower()
+    image_font = image_font.strip()
+    form_data = {
+        "image_label": image_label,
+        "image_color": image_color,
+        "image_font": image_font,
+    }
+
+    font_choices, font_error = _load_font_choices()
 
     if not image_label:
         return await _render_admin_upload(
@@ -181,6 +235,29 @@ async def admin_images_upload(
             form_data,
             success=None,
             error="Image label is required.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if image_color not in IMAGE_COLOR_CHOICES:
+        return await _render_admin_upload(
+            request,
+            form_data,
+            success=None,
+            error="Please choose a valid color option.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if image_font not in font_choices:
+        error_message = (
+            "Please choose a valid font option."
+            if not font_error
+            else "Font options are unavailable right now. Please refresh the page."
+        )
+        return await _render_admin_upload(
+            request,
+            form_data,
+            success=None,
+            error=error_message,
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
@@ -222,6 +299,8 @@ async def admin_images_upload(
             image_label=image_label,
             image_base64=image_base64,
             image_mime_type=image_mime_type,
+            image_color=image_color,
+            image_font=image_font,
         )
     except SQLAlchemyError:
         logger.exception("Failed to store gallery image %s", image_label)
@@ -272,7 +351,11 @@ async def admin_images_delete(
         logger.exception("Failed to delete gallery image %s", image_label)
         return await _render_admin_upload(
             request,
-            {"image_label": ""},
+            {
+                "image_label": "",
+                "image_color": DEFAULT_IMAGE_COLOR,
+                "image_font": DEFAULT_IMAGE_FONT,
+            },
             success=None,
             error="Something went wrong while deleting the image. Please try again.",
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

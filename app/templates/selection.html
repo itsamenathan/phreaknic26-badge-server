@@ -24,14 +24,47 @@
                 </div>
             {% endif %}
             <form method="post" class="selection-form" id="selection-form">
-                <input type="hidden" name="image_label" id="selected-label">
-                <div class="gallery">
+                <input type="hidden" name="image_label" id="selected-label" value="{{ form.image_label }}">
+                <input type="hidden" name="text_x" id="text-x" value="{{ form.text_x }}">
+                <input type="hidden" name="text_y" id="text-y" value="{{ form.text_y }}">
+                <div class="badge-editor{% if not form.image_label %} badge-editor--inactive{% endif %}" id="badge-editor">
+                    <div class="badge-preview badge-preview--empty" id="badge-preview">
+                        <img id="badge-preview-image" alt="" aria-hidden="true">
+                        <div class="badge-preview__placeholder" id="badge-preview-placeholder">
+                            Select an image to start customizing your badge.
+                        </div>
+                        <canvas class="name-overlay" id="name-overlay-canvas" aria-hidden="true"></canvas>
+                    </div>
+                    <p class="badge-instruction">Drag your name on the preview, then adjust the slider to resize it.</p>
+                </div>
+                <div class="customization-controls">
+                    <label class="field">
+                        <span>Font Size</span>
+                        <div class="font-size-control">
+                            <input
+                                type="range"
+                                name="font_size"
+                                id="font-size-input"
+                                min="{{ MIN_BADGE_FONT_SIZE }}"
+                                max="{{ MAX_BADGE_FONT_SIZE }}"
+                                value="{{ form.font_size }}"
+                                step="1"
+                                disabled
+                            >
+                            <span class="font-size-output" id="font-size-output">{{ form.font_size }}</span>
+                            <span class="font-size-unit">px</span>
+                        </div>
+                    </label>
+                </div>
+                <div class="gallery gallery--selection">
                     {% for image in profile.images %}
                         <button
                             type="button"
-                            class="thumbnail"
+                            class="thumbnail{% if form.image_label == image.label %} active{% endif %}"
                             data-label="{{ image.label }}"
                             data-src="data:{{ image.image_mime_type or 'image/png' }};base64,{{ image.image_base64 }}"
+                            data-color="{{ image.image_color or 'black' }}"
+                            data-font="{{ image.image_font or 'Awkward.ttf' }}"
                         >
                             <img src="data:{{ image.image_mime_type or 'image/png' }};base64,{{ image.image_base64 }}" alt="{{ image.label }}">
                             <span>{{ image.label }}</span>
@@ -40,7 +73,7 @@
                         <p class="empty-state">No images available for this badge.</p>
                     {% endfor %}
                 </div>
-                <button type="submit" class="primary" id="send-button" disabled>
+                <button type="submit" class="primary" id="send-button" {% if not form.image_label %}disabled{% endif %}>
                     Send
                 </button>
             </form>
@@ -54,18 +87,367 @@
         {% endif %}
     </main>
     <script>
-        const buttons = Array.from(document.querySelectorAll('.thumbnail'));
-        const selectionInput = document.getElementById('selected-label');
-        const sendButton = document.getElementById('send-button');
+        (function () {
+            const attendeeName = {{ (profile.name if profile else '') | tojson }};
+            const badgeEditor = document.getElementById('badge-editor');
+            if (!badgeEditor || !attendeeName) {
+                return;
+            }
 
-        buttons.forEach(button => {
-            button.addEventListener('click', () => {
+            const buttons = Array.from(document.querySelectorAll('.thumbnail'));
+            const selectionInput = document.getElementById('selected-label');
+            const textXInput = document.getElementById('text-x');
+            const textYInput = document.getElementById('text-y');
+            const fontSizeInput = document.getElementById('font-size-input');
+            const fontSizeOutput = document.getElementById('font-size-output');
+            const sendButton = document.getElementById('send-button');
+            const previewContainer = document.getElementById('badge-preview');
+            const previewImage = document.getElementById('badge-preview-image');
+            const previewPlaceholder = document.getElementById('badge-preview-placeholder');
+            const overlayCanvas = document.getElementById('name-overlay-canvas');
+            const overlayCtx = overlayCanvas.getContext('2d');
+
+            const PREVIEW_VISIBLE_CLASS = 'badge-preview__image--visible';
+            const PREVIEW_MAX_WIDTH = 720;
+            const PREVIEW_SCALE = 3;
+            const FONT_BASE_PATH = "{{ url_for('static', path='fonts/') }}";
+            const fontCache = new Map();
+
+            let activeButton = null;
+            let currentScale = 1;
+            let dragPointerId = null;
+            let dragOffsetX = 0;
+            let dragOffsetY = 0;
+            let pendingReset = false;
+            let pendingColor = 'black';
+            let currentFontFamily = '';
+            let currentFontColor = '#000';
+
+            function updateFontSizeDisplay() {
+                fontSizeOutput.textContent = fontSizeInput.value;
+            }
+
+            function clearOverlayCanvas() {
+                overlayCanvas.width = 0;
+                overlayCanvas.height = 0;
+                overlayCanvas.style.width = '0px';
+                overlayCanvas.style.height = '0px';
+            }
+
+            function hidePlaceholder() {
+                previewPlaceholder.hidden = true;
+                previewPlaceholder.classList.add('is-hidden');
+                previewContainer.classList.remove('badge-preview--empty');
+            }
+
+            function showPlaceholder() {
+                previewPlaceholder.hidden = false;
+                previewPlaceholder.classList.remove('is-hidden');
+                previewImage.classList.remove(PREVIEW_VISIBLE_CLASS);
+                previewContainer.classList.add('badge-preview--empty');
+                previewContainer.style.removeProperty('width');
+                previewContainer.style.removeProperty('height');
+                previewImage.style.removeProperty('width');
+                previewImage.style.removeProperty('height');
+                overlayCanvas.style.display = 'none';
+                clearOverlayCanvas();
+            }
+
+            function setEditorEnabled(enabled) {
+                badgeEditor.classList.toggle('badge-editor--inactive', !enabled);
+                fontSizeInput.disabled = !enabled;
+                overlayCanvas.style.pointerEvents = enabled ? 'auto' : 'none';
+                if (!enabled && !selectionInput.value) {
+                    showPlaceholder();
+                }
+            }
+
+            function sanitizeFontFamily(fontFilename) {
+                return `badge-font-${fontFilename.replace(/[^a-zA-Z0-9]+/g, '-')}`;
+            }
+
+            async function ensureOverlayFont(fontFilename) {
+                if (!fontFilename) {
+                    currentFontFamily = '';
+                    return '';
+                }
+                if (fontCache.has(fontFilename)) {
+                    currentFontFamily = fontCache.get(fontFilename);
+                    return currentFontFamily;
+                }
+
+                const fontFamily = sanitizeFontFamily(fontFilename);
+                const fontUrl = `${FONT_BASE_PATH}${fontFilename}`;
+
+                try {
+                    const fontFace = new FontFace(fontFamily, `url('${fontUrl}')`);
+                    const loadedFace = await fontFace.load();
+                    document.fonts.add(loadedFace);
+                    fontCache.set(fontFilename, fontFamily);
+                    currentFontFamily = fontFamily;
+                    return fontFamily;
+                } catch (error) {
+                    console.error('Failed to load font', fontFilename, error);
+                    currentFontFamily = '';
+                    return '';
+                }
+            }
+
+            function redrawOverlay() {
+                if (!selectionInput.value) {
+                    overlayCanvas.style.display = 'none';
+                    clearOverlayCanvas();
+                    return;
+                }
+
+                const fontSize = parseInt(fontSizeInput.value, 10);
+                if (!Number.isFinite(fontSize) || currentScale <= 0) {
+                    return;
+                }
+
+                const displayFontSize = fontSize * currentScale;
+                const fontFamily = currentFontFamily || window.getComputedStyle(document.body).fontFamily || 'sans-serif';
+                const dpr = window.devicePixelRatio || 1;
+
+                overlayCanvas.style.display = 'block';
+
+                overlayCtx.font = `${displayFontSize}px ${fontFamily}`;
+                const metrics = overlayCtx.measureText(attendeeName);
+                const width = metrics.actualBoundingBoxLeft + metrics.actualBoundingBoxRight;
+                const height = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
+                const leftBearing = metrics.actualBoundingBoxLeft;
+                const ascent = metrics.actualBoundingBoxAscent;
+
+                const displayWidth = Math.max(1, Math.ceil(width));
+                const displayHeight = Math.max(1, Math.ceil(height));
+
+                overlayCanvas.width = Math.max(1, Math.ceil(displayWidth * dpr));
+                overlayCanvas.height = Math.max(1, Math.ceil(displayHeight * dpr));
+                overlayCanvas.style.width = `${displayWidth}px`;
+                overlayCanvas.style.height = `${displayHeight}px`;
+
+                overlayCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                overlayCtx.clearRect(0, 0, displayWidth, displayHeight);
+                overlayCtx.font = `${displayFontSize}px ${fontFamily}`;
+                overlayCtx.textBaseline = 'alphabetic';
+                overlayCtx.fillStyle = currentFontColor;
+                overlayCtx.fillText(attendeeName, leftBearing, ascent);
+                overlayCtx.setTransform(1, 0, 0, 1, 0, 0);
+            }
+
+            function updateOverlayColors(color) {
+                currentFontColor = color === 'black' ? '#000' : '#fff';
+                redrawOverlay();
+            }
+
+            function getContainerSize() {
+                return {
+                    width: previewContainer.clientWidth,
+                    height: previewContainer.clientHeight,
+                };
+            }
+
+            function updateScale() {
+                if (!previewImage.naturalWidth || !previewImage.naturalHeight) {
+                    currentScale = 1;
+                    return;
+                }
+
+                const parentWidth = badgeEditor.clientWidth || previewImage.naturalWidth;
+                const scaledWidth = previewImage.naturalWidth * PREVIEW_SCALE;
+                const targetWidth = Math.min(PREVIEW_MAX_WIDTH, parentWidth, scaledWidth);
+                const scale = targetWidth / previewImage.naturalWidth;
+                const displayWidth = Math.round(previewImage.naturalWidth * scale);
+                const displayHeight = Math.round(previewImage.naturalHeight * scale);
+
+                previewContainer.style.width = `${displayWidth}px`;
+                previewContainer.style.height = `${displayHeight}px`;
+                previewImage.style.width = `${displayWidth}px`;
+                previewImage.style.height = `${displayHeight}px`;
+
+                currentScale = scale;
+                redrawOverlay();
+                applyOverlayPosition();
+            }
+
+            function updateHiddenFromDisplay(displayX, displayY) {
+                if (currentScale <= 0) {
+                    return;
+                }
+                const rawX = displayX / currentScale;
+                const rawY = displayY / currentScale;
+                textXInput.value = Math.round(rawX);
+                textYInput.value = Math.round(rawY);
+            }
+
+            function setOverlayPosition(displayX, displayY) {
+                const { width, height } = getContainerSize();
+                const overlayWidth = overlayCanvas.offsetWidth;
+                const overlayHeight = overlayCanvas.offsetHeight;
+                const maxX = Math.max(width - overlayWidth, 0);
+                const maxY = Math.max(height - overlayHeight, 0);
+                const clampedX = Math.min(Math.max(displayX, 0), maxX);
+                const clampedY = Math.min(Math.max(displayY, 0), maxY);
+                overlayCanvas.style.left = `${clampedX}px`;
+                overlayCanvas.style.top = `${clampedY}px`;
+                updateHiddenFromDisplay(clampedX, clampedY);
+            }
+
+            function applyOverlayPosition() {
+                if (!selectionInput.value) {
+                    return;
+                }
+                const xValue = parseInt(textXInput.value, 10);
+                const yValue = parseInt(textYInput.value, 10);
+                if (Number.isFinite(xValue) && Number.isFinite(yValue)) {
+                    setOverlayPosition(xValue * currentScale, yValue * currentScale);
+                } else {
+                    centerOverlay();
+                }
+            }
+
+            function centerOverlay() {
+                const { width, height } = getContainerSize();
+                const overlayWidth = overlayCanvas.offsetWidth;
+                const overlayHeight = overlayCanvas.offsetHeight;
+                const centerX = Math.max((width - overlayWidth) / 2, 0);
+                const centerY = Math.max((height - overlayHeight) / 2, 0);
+                setOverlayPosition(centerX, centerY);
+            }
+
+            function applyFontSize() {
+                const fontSize = parseInt(fontSizeInput.value, 10);
+                if (!Number.isFinite(fontSize)) {
+                    return;
+                }
+                updateFontSizeDisplay();
+                redrawOverlay();
+                applyOverlayPosition();
+            }
+
+            function onPreviewLoaded() {
+                if (!selectionInput.value) {
+                    return;
+                }
+                hidePlaceholder();
+                setEditorEnabled(true);
+                updateScale();
+                if (pendingReset) {
+                    textXInput.value = '';
+                    textYInput.value = '';
+                }
+                applyFontSize();
+                updateOverlayColors(pendingColor);
+                previewImage.classList.add(PREVIEW_VISIBLE_CLASS);
+                pendingReset = false;
+            }
+
+            previewImage.addEventListener('load', onPreviewLoaded);
+
+            window.addEventListener('resize', () => {
+                if (!selectionInput.value || !previewImage.naturalWidth) {
+                    return;
+                }
+                updateScale();
+            });
+
+            fontSizeInput.addEventListener('input', () => {
+                if (fontSizeInput.disabled) {
+                    return;
+                }
+                applyFontSize();
+            });
+
+            async function setActiveButton(button, shouldResetPosition) {
                 buttons.forEach(btn => btn.classList.remove('active'));
                 button.classList.add('active');
+                activeButton = button;
                 selectionInput.value = button.dataset.label;
                 sendButton.disabled = false;
+                pendingColor = button.dataset.color || 'white';
+                pendingReset = shouldResetPosition;
+                if (shouldResetPosition) {
+                    textXInput.value = '';
+                    textYInput.value = '';
+                }
+                setEditorEnabled(false);
+                hidePlaceholder();
+                overlayCanvas.style.display = 'none';
+                clearOverlayCanvas();
+
+                if (button.dataset.font) {
+                    await ensureOverlayFont(button.dataset.font);
+                } else {
+                    currentFontFamily = '';
+                }
+
+                updateOverlayColors(pendingColor);
+
+                if (button.dataset.src) {
+                    const targetSrc = button.dataset.src;
+                    if (previewImage.src === targetSrc) {
+                        window.requestAnimationFrame(onPreviewLoaded);
+                    } else {
+                        previewImage.src = targetSrc;
+                    }
+                }
+            }
+
+            buttons.forEach(button => {
+                button.addEventListener('click', () => {
+                    setActiveButton(button, true).catch(error => console.error(error));
+                });
             });
-        });
+
+            function beginDrag(event) {
+                if (badgeEditor.classList.contains('badge-editor--inactive') || overlayCanvas.style.display !== 'block') {
+                    return;
+                }
+                dragPointerId = event.pointerId;
+                const overlayRect = overlayCanvas.getBoundingClientRect();
+                dragOffsetX = event.clientX - overlayRect.left;
+                dragOffsetY = event.clientY - overlayRect.top;
+                overlayCanvas.setPointerCapture(dragPointerId);
+                overlayCanvas.classList.add('name-overlay--dragging');
+                event.preventDefault();
+            }
+
+            function drag(event) {
+                if (event.pointerId !== dragPointerId) {
+                    return;
+                }
+                const containerRect = previewContainer.getBoundingClientRect();
+                const newLeft = event.clientX - containerRect.left - dragOffsetX;
+                const newTop = event.clientY - containerRect.top - dragOffsetY;
+                setOverlayPosition(newLeft, newTop);
+            }
+
+            function endDrag(event) {
+                if (event.pointerId !== dragPointerId) {
+                    return;
+                }
+                overlayCanvas.releasePointerCapture(dragPointerId);
+                dragPointerId = null;
+                overlayCanvas.classList.remove('name-overlay--dragging');
+            }
+
+            overlayCanvas.addEventListener('pointerdown', beginDrag);
+            overlayCanvas.addEventListener('pointermove', drag);
+            overlayCanvas.addEventListener('pointerup', endDrag);
+            overlayCanvas.addEventListener('pointercancel', endDrag);
+
+            updateFontSizeDisplay();
+
+            if (selectionInput.value) {
+                const initialButton = buttons.find(btn => btn.dataset.label === selectionInput.value);
+                if (initialButton) {
+                    setActiveButton(initialButton, false).catch(error => console.error(error));
+                }
+            } else {
+                showPlaceholder();
+                setEditorEnabled(false);
+            }
+        })();
     </script>
 </body>
 </html>

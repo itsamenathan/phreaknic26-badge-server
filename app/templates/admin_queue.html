@@ -57,11 +57,26 @@
                                             <strong>{{ item.name }}</strong>
                                             <span class="queue-meta__line">Badge: {{ item.unique_id }}</span>
                                             <span class="queue-meta__line">Image: {{ item.image_label }}</span>
+                                            <span class="queue-meta__line">Color: {{ (item.image_color or 'black') | capitalize }}</span>
+                                            {% if item.font_size %}
+                                                <span class="queue-meta__line">Font Size: {{ item.font_size }}px</span>
+                                            {% endif %}
+                                            {% if item.text_x is not none and item.text_y is not none %}
+                                                <span class="queue-meta__line">Position: ({{ item.text_x }}, {{ item.text_y }})</span>
+                                            {% endif %}
+                                            <span class="queue-meta__line">Font: {{ item.image_font or 'Awkward.ttf' }}</span>
                                         </div>
                                     </td>
                                     <td data-label="Preview">
                                         <div class="queue-preview">
-                                            <img src="{{ item.image_data_uri }}" alt="{{ item.image_label }}">
+                                            <img
+                                                src="{{ item.image_data_uri }}"
+                                                alt="{{ item.image_label }} preview"
+                                                data-lightbox-src="{{ item.image_data_uri }}"
+                                                data-lightbox-label="{{ item.image_label }}"
+                                                data-lightbox-font="{{ item.image_font or 'Awkward.ttf' }}"
+                                                data-lightbox-color="{{ item.image_color or 'black' }}"
+                                            >
                                         </div>
                                     </td>
                                     <td data-label="Status">
@@ -115,5 +130,89 @@
             {% endif %}
         </section>
     </main>
+    <div class="lightbox-overlay" id="lightbox-overlay" aria-modal="true" role="dialog" hidden>
+        <div class="lightbox-content" role="document">
+            <button type="button" class="lightbox-close" id="lightbox-close">Close</button>
+            <img id="lightbox-image" alt="Expanded badge preview">
+            <div class="lightbox-meta" id="lightbox-meta"></div>
+        </div>
+    </div>
+    <script>
+        (function () {
+            const overlay = document.getElementById('lightbox-overlay');
+            if (!overlay) {
+                return;
+            }
+
+            const imageElement = document.getElementById('lightbox-image');
+            const metaElement = document.getElementById('lightbox-meta');
+            const closeButton = document.getElementById('lightbox-close');
+            const previewImages = Array.from(document.querySelectorAll('.queue-preview img[data-lightbox-src]'));
+
+            function closeLightbox() {
+                overlay.classList.remove('is-visible');
+                overlay.hidden = true;
+                imageElement.removeAttribute('src');
+                imageElement.style.removeProperty('width');
+                imageElement.style.removeProperty('height');
+                metaElement.textContent = '';
+            }
+
+            function openLightbox(preview) {
+                const src = preview.dataset.lightboxSrc;
+                if (!src) {
+                    return;
+                }
+
+                imageElement.onload = () => {
+                    const SCALE = 4;
+                    const maxWidth = window.innerWidth * 0.9;
+                    const maxHeight = window.innerHeight * 0.85;
+                    let width = imageElement.naturalWidth * SCALE;
+                    let height = imageElement.naturalHeight * SCALE;
+                    const scaleFactor = Math.min(maxWidth / width, maxHeight / height, 1);
+                    width *= scaleFactor;
+                    height *= scaleFactor;
+                    imageElement.style.width = `${width}px`;
+                    imageElement.style.height = `${height}px`;
+                };
+                imageElement.src = src;
+                const label = preview.dataset.lightboxLabel || 'Preview image';
+                imageElement.alt = `${label} enlarged`;
+                const font = preview.dataset.lightboxFont || 'Default';
+                const color = (preview.dataset.lightboxColor || 'black').toUpperCase();
+                metaElement.innerHTML = `
+                    <div><strong>Image:</strong> ${label}</div>
+                    <div><strong>Font:</strong> ${font}</div>
+                    <div><strong>Ink:</strong> ${color}</div>
+                `;
+                overlay.hidden = false;
+                requestAnimationFrame(() => overlay.classList.add('is-visible'));
+            }
+
+            previewImages.forEach((img) => {
+                img.addEventListener('click', () => openLightbox(img));
+                img.addEventListener('keydown', (event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        openLightbox(img);
+                    }
+                });
+                img.tabIndex = 0;
+            });
+
+            closeButton.addEventListener('click', closeLightbox);
+            overlay.addEventListener('click', (event) => {
+                if (event.target === overlay) {
+                    closeLightbox();
+                }
+            });
+            window.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape' && !overlay.hidden) {
+                    closeLightbox();
+                }
+            });
+        })();
+    </script>
 </body>
 </html>

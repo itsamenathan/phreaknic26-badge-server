@@ -30,6 +30,26 @@
                 <input type="text" name="image_label" required value="{{ form.image_label }}" maxlength="{{ MAX_IMAGE_LABEL_LENGTH }}">
             </label>
             <label class="field">
+                <span>Recommended Color</span>
+                <select name="image_color" required>
+                    {% for option in IMAGE_COLOR_CHOICES %}
+                        <option value="{{ option }}" {% if form.image_color == option %}selected{% endif %}>
+                            {{ option | capitalize }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label class="field">
+                <span>Font</span>
+                <select name="image_font" required>
+                    {% for font in IMAGE_FONT_CHOICES %}
+                        <option value="{{ font }}" {% if form.image_font == font %}selected{% endif %}>
+                            {{ font }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label class="field">
                 <span>Image File</span>
                 <input type="file" name="image_file" accept="image/*" required>
             </label>
@@ -50,6 +70,8 @@
                             </div>
                             <div class="admin-card__meta">
                                 <span class="admin-card__label">{{ image.image_label }}</span>
+                                <span class="admin-card__detail">Color: {{ (image.image_color or 'black') | capitalize }}</span>
+                                <span class="admin-card__detail">Font: {{ image.image_font or 'Awkward.ttf' }}</span>
                                 <form method="post" action="{{ url_for('admin_images_delete') }}">
                                     <input type="hidden" name="image_label" value="{{ image.image_label }}">
                                     <button type="submit" class="danger">Delete</button>
