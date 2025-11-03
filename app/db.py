@@ -129,6 +129,9 @@ class Database:
         image_mime_type: Optional[str],
         image_color: str,
         image_font: str,
+        font_size: Optional[int],
+        text_x: Optional[int],
+        text_y: Optional[int],
     ) -> None:
         async with self.session() as session:
             work_item = WorkQueue(
@@ -139,6 +142,9 @@ class Database:
                 image_mime_type=image_mime_type,
                 image_color=image_color or DEFAULT_IMAGE_COLOR,
                 image_font=image_font or DEFAULT_IMAGE_FONT,
+                font_size=font_size,
+                text_x=text_x,
+                text_y=text_y,
             )
             session.add(work_item)
 
@@ -254,6 +260,9 @@ class Database:
                     "image_data_uri": f"data:{mime_type};base64,{item.image_base64}",
                     "image_color": item.image_color or DEFAULT_IMAGE_COLOR,
                     "image_font": item.image_font or DEFAULT_IMAGE_FONT,
+                    "font_size": item.font_size,
+                    "text_x": item.text_x,
+                    "text_y": item.text_y,
                     "created_at": item.created_at.isoformat() if item.created_at else None,
                     "processed_at": item.processed_at.isoformat() if item.processed_at else None,
                     "is_processed": item.processed_at is not None,
@@ -310,6 +319,9 @@ class Database:
                 "image_mime_type": work.image_mime_type,
                 "image_color": work.image_color or DEFAULT_IMAGE_COLOR,
                 "image_font": work.image_font or DEFAULT_IMAGE_FONT,
+                "font_size": work.font_size,
+                "text_x": work.text_x,
+                "text_y": work.text_y,
                 "created_at": work.created_at.isoformat() if work.created_at else None,
             }
 

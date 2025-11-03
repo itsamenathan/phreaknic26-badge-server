@@ -19,6 +19,7 @@ from ..constants import (
     MAX_BADGE_NAME_LENGTH,
     MAX_IMAGE_LABEL_LENGTH,
     IMAGE_COLOR_CHOICES,
+    FONT_FILE_EXTENSIONS,
 )
 from ..db import db
 from ..dependencies import templates, verify_credentials
@@ -43,7 +44,11 @@ def _load_font_choices() -> Tuple[List[str], Optional[str]]:
             entries = {
                 entry.name
                 for entry in fonts_path.iterdir()
-                if entry.is_file() and not entry.name.startswith(".")
+                if (
+                    entry.is_file()
+                    and not entry.name.startswith(".")
+                    and entry.suffix.lower() in FONT_FILE_EXTENSIONS
+                )
             }
             choices = sorted(entries, key=str.lower)
         if not choices:

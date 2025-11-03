@@ -78,6 +78,9 @@ class WorkQueue(Base):
         nullable=False,
         default=DEFAULT_IMAGE_FONT,
     )
+    font_size: Mapped[Optional[int]] = mapped_column(nullable=True)
+    text_x: Mapped[Optional[int]] = mapped_column(nullable=True)
+    text_y: Mapped[Optional[int]] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

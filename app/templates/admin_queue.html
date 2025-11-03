@@ -58,6 +58,12 @@
                                             <span class="queue-meta__line">Badge: {{ item.unique_id }}</span>
                                             <span class="queue-meta__line">Image: {{ item.image_label }}</span>
                                             <span class="queue-meta__line">Color: {{ (item.image_color or 'black') | capitalize }}</span>
+                                            {% if item.font_size %}
+                                                <span class="queue-meta__line">Font Size: {{ item.font_size }}px</span>
+                                            {% endif %}
+                                            {% if item.text_x is not none and item.text_y is not none %}
+                                                <span class="queue-meta__line">Position: ({{ item.text_x }}, {{ item.text_y }})</span>
+                                            {% endif %}
                                             <span class="queue-meta__line">Font: {{ item.image_font or 'Awkward.ttf' }}</span>
                                         </div>
                                     </td>
