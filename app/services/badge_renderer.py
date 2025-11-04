@@ -85,12 +85,11 @@ def render_badge_image(
             else:
                 raise
         try:
-            font = ImageFont.truetype(str(font_path), font_size)
+            truetype_font = ImageFont.truetype(str(font_path), font_size)
         except (OSError, ValueError) as exc:
             raise RuntimeError(f"Unable to load font '{font_filename}'.") from exc
 
-        draw = ImageDraw.Draw(img)
-        bbox = font.getbbox(attendee_name)
+        bbox = truetype_font.getbbox(attendee_name)
         left, top, right, bottom = bbox
         text_width = right - left
         text_height = bottom - top
@@ -112,12 +111,24 @@ def render_badge_image(
 
         fill = (0, 0, 0, 255) if text_color.lower() == "black" else (255, 255, 255, 255)
 
-        draw.text(
-            (x - left, y - top),
+        # Draw text onto a small RGBA canvas first so we can disable smoothing when scaling.
+        mask_width = max(text_width, 1)
+        mask_height = max(text_height, 1)
+        mask_image = Image.new("1", (mask_width, mask_height), 0)
+        mask_draw = ImageDraw.Draw(mask_image)
+        mask_draw.text(
+            (-left, -top),
             attendee_name,
-            font=font,
-            fill=fill,
+            fill=1,
+            font=truetype_font,
         )
+
+        mask_alpha = mask_image.convert("L")
+
+        color_image = Image.new("RGBA", mask_image.size, fill)
+        color_image.putalpha(mask_alpha)
+
+        img.alpha_composite(color_image, dest=(x, y))
 
         output = BytesIO()
         final_image = img
