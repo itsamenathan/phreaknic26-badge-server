@@ -748,6 +748,19 @@ p {
     display: none;
 }
 
+.badge-preview__guide {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 0;
+    background: rgba(255, 0, 0, 0.50);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.4);
+    pointer-events: none;
+    z-index: 2;
+    display: none;
+}
+
 
 .name-overlay {
     position: absolute;
