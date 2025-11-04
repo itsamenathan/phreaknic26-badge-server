@@ -752,10 +752,9 @@ p {
     position: absolute;
     top: 0;
     left: 0;
-    right: 0;
+    width: 0;
     height: 0;
-    background: rgba(255, 0, 0, 0.50);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.4);
+    background: rgba(255, 0, 0, 0.45);
     pointer-events: none;
     z-index: 2;
     display: none;

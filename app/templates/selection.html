@@ -142,6 +142,9 @@
                 previewContainer.classList.remove('badge-preview--empty');
                 if (previewGuide) {
                     previewGuide.style.display = 'none';
+                    previewGuide.style.removeProperty('top');
+                    previewGuide.style.removeProperty('left');
+                    previewGuide.style.removeProperty('width');
                     previewGuide.style.removeProperty('height');
                 }
             }
@@ -157,6 +160,9 @@
                 previewImage.style.removeProperty('height');
                 if (previewGuide) {
                     previewGuide.style.display = 'none';
+                    previewGuide.style.removeProperty('top');
+                    previewGuide.style.removeProperty('left');
+                    previewGuide.style.removeProperty('width');
                     previewGuide.style.removeProperty('height');
                 }
                 overlayCanvas.style.display = 'none';
@@ -262,6 +268,9 @@
                     currentScale = 1;
                     if (previewGuide) {
                         previewGuide.style.display = 'none';
+                        previewGuide.style.removeProperty('top');
+                        previewGuide.style.removeProperty('left');
+                        previewGuide.style.removeProperty('width');
                         previewGuide.style.removeProperty('height');
                     }
                     return;
@@ -289,12 +298,21 @@
                 if (!previewGuide || !selectionInput.value || currentScale <= 0) {
                     if (previewGuide) {
                         previewGuide.style.display = 'none';
+                        previewGuide.style.removeProperty('top');
+                        previewGuide.style.removeProperty('left');
+                        previewGuide.style.removeProperty('width');
                         previewGuide.style.removeProperty('height');
                     }
                     return;
                 }
 
-                const guideHeight = Math.max(1, Math.round(30 * currentScale));
+                const inset = 5 * currentScale;
+                const guideHeight = 22 * currentScale;
+                const guideWidth = Math.max((previewImage.naturalWidth - 10) * currentScale, 0);
+
+                previewGuide.style.top = `${inset}px`;
+                previewGuide.style.left = `${inset}px`;
+                previewGuide.style.width = `${guideWidth}px`;
                 previewGuide.style.height = `${guideHeight}px`;
                 previewGuide.style.display = 'block';
             }
@@ -404,6 +422,13 @@
                 hidePlaceholder();
                 overlayCanvas.style.display = 'none';
                 clearOverlayCanvas();
+                if (previewGuide) {
+                    previewGuide.style.display = 'none';
+                    previewGuide.style.removeProperty('top');
+                    previewGuide.style.removeProperty('left');
+                    previewGuide.style.removeProperty('width');
+                    previewGuide.style.removeProperty('height');
+                }
 
                 if (button.dataset.font) {
                     await ensureOverlayFont(button.dataset.font);
