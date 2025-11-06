@@ -218,6 +218,17 @@ class Database:
             badge.name = name
             return "updated"
 
+    async def update_badge_name(self, unique_id: str, name: str) -> bool:
+        async with self.session() as session:
+            stmt = select(Badge).where(Badge.unique_id == unique_id)
+            badge = await session.scalar(stmt)
+            if badge is None:
+                return False
+
+            badge.name = name
+
+        return True
+
     async def list_badges(self, limit: int = 100) -> List[Dict[str, Any]]:
         async with self.session() as session:
             stmt = select(Badge).order_by(Badge.unique_id.asc()).limit(limit)
