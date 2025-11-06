@@ -10,19 +10,21 @@ from fastapi import APIRouter, Depends, File, Form, Request, UploadFile, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.responses import Response
 
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from ..constants import (
     DEFAULT_IMAGE_COLOR,
     DEFAULT_IMAGE_FONT,
     MAX_BADGE_ID_LENGTH,
     MAX_BADGE_NAME_LENGTH,
+    MAX_BADGE_MAC_ADDRESS_LENGTH,
     MAX_IMAGE_LABEL_LENGTH,
     IMAGE_COLOR_CHOICES,
     FONT_FILE_EXTENSIONS,
 )
 from ..db import db
 from ..dependencies import templates, verify_credentials
+from ..utils import normalise_mac_address
 
 
 router = APIRouter(
@@ -34,7 +36,6 @@ router = APIRouter(
 logger = logging.getLogger(__name__)
 QUEUE_PAGE_LIMIT = 50
 FONTS_DIR = (Path(__file__).resolve().parent.parent / "static" / "fonts").resolve()
-
 
 def _load_font_choices() -> Tuple[List[str], Optional[str]]:
     try:
@@ -134,6 +135,7 @@ async def _render_admin_create_badge(
             "badges": badges,
             "MAX_BADGE_ID_LENGTH": MAX_BADGE_ID_LENGTH,
             "MAX_BADGE_NAME_LENGTH": MAX_BADGE_NAME_LENGTH,
+            "MAX_BADGE_MAC_ADDRESS_LENGTH": MAX_BADGE_MAC_ADDRESS_LENGTH,
         },
         status_code=status_code,
     )
@@ -375,12 +377,14 @@ async def admin_badges_form(
     request: Request,
     unique_id: Optional[str] = None,
     name: Optional[str] = None,
+    mac_address: Optional[str] = None,
     success: Optional[str] = None,
     error: Optional[str] = None,
 ) -> Response:
     form_data = {
         "unique_id": (unique_id or "")[:MAX_BADGE_ID_LENGTH],
         "name": (name or "")[:MAX_BADGE_NAME_LENGTH],
+        "mac_address": (mac_address or "")[:MAX_BADGE_MAC_ADDRESS_LENGTH],
     }
     return await _render_admin_create_badge(
         request,
@@ -395,10 +399,12 @@ async def admin_badges_submit(
     request: Request,
     unique_id: str = Form(..., max_length=MAX_BADGE_ID_LENGTH),
     name: str = Form(..., max_length=MAX_BADGE_NAME_LENGTH),
+    mac_address: str = Form(..., max_length=MAX_BADGE_MAC_ADDRESS_LENGTH),
 ) -> Response:
     unique_id = unique_id.strip()
     name = name.strip()
-    form_data = {"unique_id": unique_id, "name": name}
+    mac_address = mac_address.strip()
+    form_data = {"unique_id": unique_id, "name": name, "mac_address": mac_address}
 
     if not unique_id or not name:
         return await _render_admin_create_badge(
@@ -406,6 +412,15 @@ async def admin_badges_submit(
             form_data,
             success=None,
             error="Both badge ID and name are required.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if not mac_address:
+        return await _render_admin_create_badge(
+            request,
+            form_data,
+            success=None,
+            error="MAC address is required.",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
@@ -427,8 +442,32 @@ async def admin_badges_submit(
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
+    normalised_mac = normalise_mac_address(mac_address)
+    if normalised_mac is None:
+        return await _render_admin_create_badge(
+            request,
+            form_data,
+            success=None,
+            error="Please enter a valid MAC address (e.g. AA:BB:CC:DD:EE:FF).",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    form_data["mac_address"] = normalised_mac
+
     try:
-        outcome = await db.create_or_update_badge(unique_id=unique_id, name=name)
+        outcome = await db.create_or_update_badge(
+            unique_id=unique_id,
+            name=name,
+            mac_address=normalised_mac,
+        )
+    except IntegrityError:
+        logger.exception("MAC address conflict for badge %s", unique_id)
+        return await _render_admin_create_badge(
+            request,
+            form_data,
+            success=None,
+            error="That MAC address is already assigned to another badge.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
     except SQLAlchemyError:
         logger.exception("Failed to create or update badge %s", unique_id)
         return await _render_admin_create_badge(
@@ -449,6 +488,7 @@ async def admin_badges_submit(
             "success": message,
             "unique_id": unique_id,
             "name": name,
+            "mac_address": normalised_mac,
         }
     )
     redirect_url = f"{request.url_for('admin_badges_form')}?{query_params}"

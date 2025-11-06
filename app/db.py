@@ -117,7 +117,48 @@ class Database:
             return {
                 "unique_id": badge.unique_id,
                 "name": badge.name,
+                "mac_address": badge.mac_address,
                 "images": images,
+            }
+
+    async def fetch_profile_by_mac(self, mac_address: str) -> Optional[Dict[str, Any]]:
+        async with self.session() as session:
+            badge_stmt = select(Badge).where(Badge.mac_address == mac_address)
+            badge = await session.scalar(badge_stmt)
+            if badge is None:
+                return None
+
+            image_stmt = select(AvailableImage).order_by(AvailableImage.image_label)
+            image_rows = await session.scalars(image_stmt)
+            images: List[Dict[str, Any]] = [
+                {
+                    "label": image.image_label,
+                    "image_base64": image.image_base64,
+                    "image_mime_type": image.image_mime_type,
+                    "image_color": image.image_color or DEFAULT_IMAGE_COLOR,
+                    "image_font": image.image_font or DEFAULT_IMAGE_FONT,
+                }
+                for image in image_rows
+            ]
+
+            return {
+                "unique_id": badge.unique_id,
+                "name": badge.name,
+                "mac_address": badge.mac_address,
+                "images": images,
+            }
+
+    async def get_badge_by_mac(self, mac_address: str) -> Optional[Dict[str, Any]]:
+        async with self.session() as session:
+            stmt = select(Badge).where(Badge.mac_address == mac_address)
+            badge = await session.scalar(stmt)
+            if badge is None:
+                return None
+
+            return {
+                "unique_id": badge.unique_id,
+                "name": badge.name,
+                "mac_address": badge.mac_address,
             }
 
     async def enqueue_selection(
@@ -206,16 +247,17 @@ class Database:
 
         return True
 
-    async def create_or_update_badge(self, unique_id: str, name: str) -> str:
+    async def create_or_update_badge(self, unique_id: str, name: str, mac_address: Optional[str]) -> str:
         async with self.session() as session:
             stmt = select(Badge).where(Badge.unique_id == unique_id)
             badge = await session.scalar(stmt)
             if badge is None:
-                badge = Badge(unique_id=unique_id, name=name)
+                badge = Badge(unique_id=unique_id, name=name, mac_address=mac_address)
                 session.add(badge)
                 return "created"
 
             badge.name = name
+            badge.mac_address = mac_address
             return "updated"
 
     async def update_badge_name(self, unique_id: str, name: str) -> bool:
@@ -239,6 +281,7 @@ class Database:
             {
                 "unique_id": badge.unique_id,
                 "name": badge.name,
+                "mac_address": badge.mac_address,
             }
             for badge in badges
         ]

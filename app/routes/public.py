@@ -4,7 +4,7 @@ import logging
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, Form, Request, status
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from starlette.responses import Response
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -23,6 +23,7 @@ from ..constants import (
     MIN_BADGE_FONT_SIZE,
 )
 from ..services.badge_renderer import render_badge_image
+from ..utils import normalise_mac_address
 
 
 router = APIRouter(tags=["public"])
@@ -418,6 +419,7 @@ async def post_badge(
             error="We couldn't save your selection right now. Please try again.",
             sent=False,
             form=form_state,
+            is_admin=is_admin,
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
 
@@ -470,3 +472,30 @@ router.add_api_route(
     include_in_schema=False,
     name="uppercase_post_badge",
 )
+
+
+@router.get("/api/badges/mac/{mac_address}", response_class=JSONResponse)
+async def get_badge_by_mac_api(mac_address: str) -> Response:
+    normalised = normalise_mac_address(mac_address)
+    if normalised is None:
+        return JSONResponse(
+            {"detail": "Invalid MAC address. Use format AA:BB:CC:DD:EE:FF."},
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        badge = await db.get_badge_by_mac(normalised)
+    except SQLAlchemyError:
+        logger.exception("Failed to look up badge for MAC %s", mac_address)
+        return JSONResponse(
+            {"detail": "Failed to look up that badge. Please try again."},
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+    if badge is None:
+        return JSONResponse(
+            {"detail": "Badge not found."},
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+
+    return JSONResponse(badge)

@@ -33,6 +33,10 @@
                 <span>Name</span>
                 <input type="text" name="name" required value="{{ form.name }}" maxlength="{{ MAX_BADGE_NAME_LENGTH }}">
             </label>
+            <label class="field">
+                <span>MAC Address</span>
+                <input type="text" name="mac_address" required value="{{ form.mac_address }}" maxlength="{{ MAX_BADGE_MAC_ADDRESS_LENGTH }}" placeholder="AA:BB:CC:DD:EE:FF">
+            </label>
             <button type="submit" class="primary">Save Badge</button>
         </form>
 
@@ -48,6 +52,7 @@
                             <tr>
                                 <th scope="col">Badge ID</th>
                                 <th scope="col">Name</th>
+                                <th scope="col">MAC Address</th>
                                 <th scope="col">Actions</th>
                             </tr>
                         </thead>
@@ -63,12 +68,17 @@
                                         </a>
                                     </td>
                                     <td data-label="Name">{{ badge.name }}</td>
+                                    <td data-label="MAC">{{ badge.mac_address or '—' }}</td>
                                     <td data-label="Actions">
                                         <form method="post" action="{{ url_for('admin_badges_submit') }}" class="inline-form">
                                             <input type="hidden" name="unique_id" value="{{ badge.unique_id }}">
                                             <label class="field compact">
                                                 <span class="visually-hidden">New name for {{ badge.unique_id }}</span>
                                                 <input type="text" name="name" value="{{ badge.name }}" required maxlength="{{ MAX_BADGE_NAME_LENGTH }}">
+                                            </label>
+                                            <label class="field compact">
+                                                <span class="visually-hidden">MAC for {{ badge.unique_id }}</span>
+                                                <input type="text" name="mac_address" value="{{ badge.mac_address or '' }}" required maxlength="{{ MAX_BADGE_MAC_ADDRESS_LENGTH }}" placeholder="AA:BB:CC:DD:EE:FF">
                                             </label>
                                             <button type="submit" class="secondary">Update</button>
                                         </form>

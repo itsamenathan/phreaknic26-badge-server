@@ -18,6 +18,11 @@ class Badge(Base):
 
     unique_id: Mapped[str] = mapped_column(String, primary_key=True)
     name: Mapped[str] = mapped_column(Text)
+    mac_address: Mapped[Optional[str]] = mapped_column(
+        String(17),
+        unique=True,
+        nullable=True,
+    )
 
     images: Mapped[List["BadgeImage"]] = relationship(
         back_populates="badge",

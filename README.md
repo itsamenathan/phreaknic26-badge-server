@@ -5,10 +5,11 @@ Python web service for managing PhreakNIC badge artwork, from attendee selection
 ## Features
 - Attendee badge page (`/badges/{unique_id}`) shows the badge holder’s name and current artwork options. (Legacy `/id={unique_id}` still works.) A landing page `/` lets users enter their badge ID.
 - Admin artwork screen (`/admin/images`) lets authenticated staff add, preview, and delete available badge artwork.
-- Admin badge management screen (`/admin/badges`) registers badge IDs, lists existing entries, and lets admins update attendee names ahead of onsite selection.
+- Admin badge management screen (`/admin/badges`) registers badge IDs, names, and MAC addresses, and lists existing entries for quick updates.
 - Admin work queue (`/admin/work-items`) shows pending items with controls to mark them processed or delete them.
 - Admin hub (`/admin`) links to the badge, artwork, and queue tools behind a single login.
-- Programmatic badge API (`POST /admin/api/badges`) lets trusted systems register attendees via JSON.
+- Programmatic badge API (`POST /admin/api/badges`) lets trusted systems register attendees (ID, name, MAC) via JSON.
+- JSON lookup endpoints allow trusted systems or devices to resolve badges by MAC address.
 - Authenticated work API (`GET /admin/api/work-items/next`) returns the oldest unprocessed queue entry as JSON and marks it processed.
 - Built with FastAPI, SQLAlchemy’s async engine, Jinja2 templates, and lightweight HTML/CSS for quick operator workflows.
 
@@ -16,6 +17,7 @@ Python web service for managing PhreakNIC badge artwork, from attendee selection
 1. Python 3.11+
 2. PostgreSQL instance with access credentials.
 3. [`uv`](https://github.com/astral-sh/uv) for dependency and virtualenv management.
+4. [`alembic`](https://alembic.sqlalchemy.org/) (already listed in `pyproject.toml`) for database migrations.
 
 Install dependencies with:
 ```bash
@@ -40,13 +42,29 @@ Set the following environment variables before launching the app:
 
 Use the same credentials to access `/admin/badges`, `/admin/images`, `/admin/work-items`, and the admin APIs.
 
+## Database Migrations
+The project uses Alembic for schema management.
+
+- **Fresh database:** create the database, ensure `DATABASE_URL` is set, then run:
+  ```bash
+  alembic upgrade head
+  ```
+- **Existing database (pre-Alembic):** tell Alembic the current schema is at the baseline revision, then run the latest migrations:
+  ```bash
+  alembic stamp b8bec1855043
+  alembic upgrade head
+  ```
+
+Run migrations every time you pull changes that update the schema.
+
 ## Database Schema
-Below is a reference schema used by the application. Adjust names and columns as needed, but preserve the referenced fields.
+Below is the schema that corresponds to the current migrations. Adjust names and columns as needed, but preserve the referenced fields.
 
 ```sql
 CREATE TABLE badges (
     unique_id TEXT PRIMARY KEY,
-    name TEXT NOT NULL
+    name TEXT NOT NULL,
+    mac_address VARCHAR(17) UNIQUE
 );
 
 CREATE TABLE badge_images (
@@ -61,7 +79,9 @@ CREATE TABLE available_images (
     id SERIAL PRIMARY KEY,
     image_label TEXT UNIQUE NOT NULL,
     image_base64 TEXT NOT NULL,
-    image_mime_type TEXT
+    image_mime_type TEXT,
+    image_color TEXT NOT NULL,
+    image_font TEXT NOT NULL
 );
 
 CREATE TABLE work_queue (
@@ -70,7 +90,12 @@ CREATE TABLE work_queue (
     name TEXT NOT NULL,
     image_label TEXT NOT NULL,
     image_base64 TEXT NOT NULL,
-    image_mime_type TEXT NOT NULL DEFAULT 'image/png',
+    image_mime_type TEXT,
+    image_color TEXT NOT NULL,
+    image_font TEXT NOT NULL,
+    font_size INTEGER,
+    text_x INTEGER,
+    text_y INTEGER,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     processed_at TIMESTAMPTZ
 );
@@ -100,10 +125,10 @@ CREATE INDEX idx_work_queue_processed_created
   Deletes an available image by label.
 
 - `GET /admin/badges` *(Basic Auth)*  
-  Displays a simple form to register or update attendees.
+  Displays a form to register or update attendees, including MAC addresses used by firmware tooling.
 
 - `POST /admin/badges` *(Basic Auth)*  
-  Saves the badge ID and name so the attendee can access `/badges/{unique_id}`.
+  Saves the badge ID, name, and MAC address so the attendee can access `/badges/{unique_id}`.
 
 - `GET /admin/work-items` *(Basic Auth)*  
   Displays up to 50 recent work items (toggle processed items with `?show_processed=1`).
@@ -115,7 +140,10 @@ CREATE INDEX idx_work_queue_processed_created
   Permanently removes a work item.
 
 - `POST /admin/api/badges` *(Basic Auth, JSON)*  
-  Accepts a JSON body `{"unique_id": "...", "name": "..."}` and returns `201 Created` for new badges or `200 OK` when updating an existing record.
+  Accepts a JSON body `{"unique_id": "...", "name": "...", "mac_address": "AA:BB:CC:DD:EE:FF"}` and returns `201 Created` for new badges or `200 OK` when updating an existing record. The MAC address is normalised and must be unique.
+
+- `GET /admin/api/badges/mac/{mac_address}` *(Basic Auth)*  
+  Returns the full badge profile (ID, name, available images) for the given MAC address. Responds with `404` if no badge matches.
 
 - `GET /admin/api/work-items/next` *(Basic Auth)*  
   Returns the oldest unprocessed queue entry:
@@ -126,10 +154,18 @@ CREATE INDEX idx_work_queue_processed_created
     "image_label": "Badge Art 1",
     "image_base64": "<base64 payload>",
     "image_mime_type": "image/png",
+    "image_color": "black",
+    "image_font": "Awkward.ttf",
+    "font_size": 18,
+    "text_x": 120,
+    "text_y": 60,
     "created_at": "2024-08-01T12:34:56.789123+00:00"
   }
   ```
   Responds with `204 No Content` when no work is available.
+
+- `GET /api/badges/mac/{mac_address}`  
+  Public JSON endpoint that returns the badge ID, name, and MAC address. Useful for firmware tools that only know the hardware MAC.
 
 - `GET /healthz`  
   Lightweight readiness probe returning `{"status": "ok"}`.
