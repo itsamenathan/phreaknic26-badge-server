@@ -86,9 +86,25 @@
                         <p class="empty-state">No images available for this badge.</p>
                     {% endfor %}
                 </div>
-                <button type="submit" class="primary" id="send-button" {% if not form.image_label %}disabled{% endif %}>
-                    Save
-                </button>
+                <div class="action-buttons">
+                    <button type="submit" class="primary" id="send-button" {% if not form.image_label %}disabled{% endif %}>
+                        Save
+                    </button>
+                    {% if profile.firmware_base64 %}
+                        <a
+                            class="secondary download-button"
+                            id="download-firmware-button"
+                            href="data:application/octet-stream;base64,{{ profile.firmware_base64 }}"
+                            download="{{ profile.unique_id }}.bin"
+                        >
+                            Download Firmware
+                        </a>
+                    {% else %}
+                        <button type="button" class="secondary download-button" id="download-firmware-button" disabled>
+                            Download Firmware
+                        </button>
+                    {% endif %}
+                </div>
             </form>
         {% else %}
             <header>
