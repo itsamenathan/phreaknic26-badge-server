@@ -10,12 +10,12 @@
     <main class="container">
         {% if profile %}
             <header>
-                <h1>{{ profile.name }}</h1>
+                <h1>{{ form.display_name or profile.name }}</h1>
                 <p>Select the image you want to send for <strong>{{ profile.unique_id }}</strong>.</p>
             </header>
             {% if sent %}
                 <div class="alert success" role="status">
-                    Image sent to the queue successfully.
+                    Badge saved successfully.
                 </div>
             {% endif %}
             {% if error %}
@@ -27,6 +27,18 @@
                 <input type="hidden" name="image_label" id="selected-label" value="{{ form.image_label }}">
                 <input type="hidden" name="text_x" id="text-x" value="{{ form.text_x }}">
                 <input type="hidden" name="text_y" id="text-y" value="{{ form.text_y }}">
+                {% if is_admin %}
+                    <label class="field">
+                        <span>Override Name</span>
+                        <input
+                            type="text"
+                            name="override_name"
+                            id="badge-name-input"
+                            value="{{ form.display_name or profile.name }}"
+                            maxlength="{{ MAX_BADGE_NAME_LENGTH }}"
+                        >
+                    </label>
+                {% endif %}
                 <div class="badge-editor{% if not form.image_label %} badge-editor--inactive{% endif %}" id="badge-editor">
                     <div class="badge-preview badge-preview--empty" id="badge-preview">
                         <img id="badge-preview-image" alt="" aria-hidden="true">
@@ -75,7 +87,7 @@
                     {% endfor %}
                 </div>
                 <button type="submit" class="primary" id="send-button" {% if not form.image_label %}disabled{% endif %}>
-                    Send
+                    Save
                 </button>
             </form>
         {% else %}
@@ -89,10 +101,17 @@
     </main>
     <script>
         (function () {
-            const attendeeName = {{ (profile.name if profile else '') | tojson }};
+            const defaultName = {{ (profile.name if profile else '') | tojson }};
+            let attendeeName = {{ ((form.display_name or profile.name) if profile else '') | tojson }};
             const badgeEditor = document.getElementById('badge-editor');
-            if (!badgeEditor || !attendeeName) {
+            if (!badgeEditor) {
                 return;
+            }
+            if (!attendeeName) {
+                attendeeName = defaultName;
+                if (!attendeeName) {
+                    return;
+                }
             }
 
             const buttons = Array.from(document.querySelectorAll('.thumbnail'));
@@ -108,6 +127,7 @@
             const previewGuide = document.getElementById('badge-preview-guide');
             const overlayCanvas = document.getElementById('name-overlay-canvas');
             const overlayCtx = overlayCanvas.getContext('2d');
+            const nameInput = document.getElementById('badge-name-input');
 
             const PREVIEW_VISIBLE_CLASS = 'badge-preview__image--visible';
             const PREVIEW_MAX_WIDTH = 960;
@@ -306,14 +326,18 @@
                     return;
                 }
 
-                const inset = 5 * currentScale;
-                const guideHeight = 22 * currentScale;
-                const guideWidth = Math.max((previewImage.naturalWidth - 10) * currentScale, 0);
+                const rawInset = 5;
+                const rawHeight = 22;
+                const inset = rawInset * currentScale;
+                const containerWidth = previewContainer.clientWidth || (previewImage.naturalWidth * currentScale);
+                const containerHeight = previewContainer.clientHeight || (previewImage.naturalHeight * currentScale);
+                const guideWidth = Math.max(containerWidth - inset * 2, 0);
+                const clampedHeight = Math.min(containerHeight - inset * 2, rawHeight * currentScale);
 
                 previewGuide.style.top = `${inset}px`;
                 previewGuide.style.left = `${inset}px`;
                 previewGuide.style.width = `${guideWidth}px`;
-                previewGuide.style.height = `${guideHeight}px`;
+                previewGuide.style.height = `${Math.max(clampedHeight, 0)}px`;
                 previewGuide.style.display = 'block';
             }
 
@@ -323,8 +347,8 @@
                 }
                 const rawX = displayX / currentScale;
                 const rawY = displayY / currentScale;
-                textXInput.value = Math.round(rawX);
-                textYInput.value = Math.round(rawY);
+                textXInput.value = Math.max(0, Math.floor(rawX));
+                textYInput.value = Math.max(0, Math.floor(rawY));
             }
 
             function setOverlayPosition(displayX, displayY) {
@@ -501,6 +525,14 @@
             } else {
                 showPlaceholder();
                 setEditorEnabled(false);
+            }
+
+            if (nameInput) {
+                nameInput.addEventListener('input', () => {
+                    attendeeName = nameInput.value.trim() || defaultName;
+                    redrawOverlay();
+                    applyOverlayPosition();
+                });
             }
         })();
     </script>

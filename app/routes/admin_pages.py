@@ -10,19 +10,21 @@ from fastapi import APIRouter, Depends, File, Form, Request, UploadFile, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.responses import Response
 
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from ..constants import (
     DEFAULT_IMAGE_COLOR,
     DEFAULT_IMAGE_FONT,
     MAX_BADGE_ID_LENGTH,
     MAX_BADGE_NAME_LENGTH,
+    MAX_BADGE_MAC_ADDRESS_LENGTH,
     MAX_IMAGE_LABEL_LENGTH,
     IMAGE_COLOR_CHOICES,
     FONT_FILE_EXTENSIONS,
 )
 from ..db import db
 from ..dependencies import templates, verify_credentials
+from ..utils import normalise_mac_address
 
 
 router = APIRouter(
@@ -32,9 +34,7 @@ router = APIRouter(
 )
 
 logger = logging.getLogger(__name__)
-QUEUE_PAGE_LIMIT = 50
 FONTS_DIR = (Path(__file__).resolve().parent.parent / "static" / "fonts").resolve()
-
 
 def _load_font_choices() -> Tuple[List[str], Optional[str]]:
     try:
@@ -114,7 +114,7 @@ async def _render_admin_create_badge(
     error: Optional[str],
     status_code: int = status.HTTP_200_OK,
 ) -> Response:
-    badges: List[Dict[str, str]] = []
+    badges: List[Dict[str, Any]] = []
     load_error: Optional[str] = None
     try:
         badges = await db.list_badges()
@@ -134,50 +134,10 @@ async def _render_admin_create_badge(
             "badges": badges,
             "MAX_BADGE_ID_LENGTH": MAX_BADGE_ID_LENGTH,
             "MAX_BADGE_NAME_LENGTH": MAX_BADGE_NAME_LENGTH,
+            "MAX_BADGE_MAC_ADDRESS_LENGTH": MAX_BADGE_MAC_ADDRESS_LENGTH,
         },
         status_code=status_code,
     )
-
-
-async def _load_queue_items(include_processed: bool) -> Tuple[List[Dict[str, Any]], Optional[str]]:
-    try:
-        items = await db.list_work_items(include_processed=include_processed, limit=QUEUE_PAGE_LIMIT)
-        return items, None
-    except SQLAlchemyError:
-        logger.exception("Failed to load work queue")
-        return [], "We couldn't load the queue items. Please refresh the page."
-
-
-async def _render_admin_queue(
-    request: Request,
-    *,
-    show_processed: bool,
-    success: Optional[str],
-    error: Optional[str],
-    status_code: int = status.HTTP_200_OK,
-) -> Response:
-    queue_items, load_error = await _load_queue_items(show_processed)
-    error_messages = [msg for msg in (error, load_error) if msg]
-    combined_error = "; ".join(error_messages) if error_messages else None
-    return templates.TemplateResponse(
-        "admin_queue.html",
-        {
-            "request": request,
-            "queue_items": queue_items,
-            "show_processed": show_processed,
-            "success": success,
-            "error": combined_error,
-            "queue_limit": QUEUE_PAGE_LIMIT,
-        },
-        status_code=status_code,
-    )
-
-
-def _build_queue_redirect(request: Request, params: Dict[str, str]) -> str:
-    base_url = str(request.url_for("admin_work_items"))
-    if params:
-        return f"{base_url}?{urlencode(params)}"
-    return base_url
 
 
 @router.get("", response_class=HTMLResponse)
@@ -375,12 +335,14 @@ async def admin_badges_form(
     request: Request,
     unique_id: Optional[str] = None,
     name: Optional[str] = None,
+    mac_address: Optional[str] = None,
     success: Optional[str] = None,
     error: Optional[str] = None,
 ) -> Response:
     form_data = {
         "unique_id": (unique_id or "")[:MAX_BADGE_ID_LENGTH],
         "name": (name or "")[:MAX_BADGE_NAME_LENGTH],
+        "mac_address": (mac_address or "")[:MAX_BADGE_MAC_ADDRESS_LENGTH],
     }
     return await _render_admin_create_badge(
         request,
@@ -395,10 +357,12 @@ async def admin_badges_submit(
     request: Request,
     unique_id: str = Form(..., max_length=MAX_BADGE_ID_LENGTH),
     name: str = Form(..., max_length=MAX_BADGE_NAME_LENGTH),
+    mac_address: str = Form(..., max_length=MAX_BADGE_MAC_ADDRESS_LENGTH),
 ) -> Response:
     unique_id = unique_id.strip()
     name = name.strip()
-    form_data = {"unique_id": unique_id, "name": name}
+    mac_address = mac_address.strip()
+    form_data = {"unique_id": unique_id, "name": name, "mac_address": mac_address}
 
     if not unique_id or not name:
         return await _render_admin_create_badge(
@@ -406,6 +370,15 @@ async def admin_badges_submit(
             form_data,
             success=None,
             error="Both badge ID and name are required.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if not mac_address:
+        return await _render_admin_create_badge(
+            request,
+            form_data,
+            success=None,
+            error="MAC address is required.",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
@@ -427,8 +400,32 @@ async def admin_badges_submit(
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
+    normalised_mac = normalise_mac_address(mac_address)
+    if normalised_mac is None:
+        return await _render_admin_create_badge(
+            request,
+            form_data,
+            success=None,
+            error="Please enter a valid MAC address (e.g. AA:BB:CC:DD:EE:FF).",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    form_data["mac_address"] = normalised_mac
+
     try:
-        outcome = await db.create_or_update_badge(unique_id=unique_id, name=name)
+        outcome = await db.create_or_update_badge(
+            unique_id=unique_id,
+            name=name,
+            mac_address=normalised_mac,
+        )
+    except IntegrityError:
+        logger.exception("MAC address conflict for badge %s", unique_id)
+        return await _render_admin_create_badge(
+            request,
+            form_data,
+            success=None,
+            error="That MAC address is already assigned to another badge.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
     except SQLAlchemyError:
         logger.exception("Failed to create or update badge %s", unique_id)
         return await _render_admin_create_badge(
@@ -449,84 +446,8 @@ async def admin_badges_submit(
             "success": message,
             "unique_id": unique_id,
             "name": name,
+            "mac_address": normalised_mac,
         }
     )
     redirect_url = f"{request.url_for('admin_badges_form')}?{query_params}"
-    return RedirectResponse(redirect_url, status_code=status.HTTP_303_SEE_OTHER)
-
-
-@router.get("/work-items", response_class=HTMLResponse)
-async def admin_work_items(
-    request: Request,
-    show_processed: int = 0,
-    success: Optional[str] = None,
-    error: Optional[str] = None,
-) -> Response:
-    include_processed = bool(show_processed)
-    return await _render_admin_queue(
-        request,
-        show_processed=include_processed,
-        success=success,
-        error=error,
-    )
-
-
-@router.post("/work-items/{work_id}/mark", response_class=HTMLResponse)
-async def admin_work_items_mark(
-    request: Request,
-    work_id: int,
-    show_processed: Optional[str] = Form("0"),
-) -> Response:
-    include_processed = show_processed == "1"
-    try:
-        result = await db.mark_work_item_processed(work_id)
-    except SQLAlchemyError:
-        logger.exception("Failed to mark work item %s as processed", work_id)
-        return await _render_admin_queue(
-            request,
-            show_processed=include_processed,
-            success=None,
-            error="Something went wrong while updating the work item. Please try again.",
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        )
-
-    if result == "marked":
-        params: Dict[str, str] = {"success": "Work item marked as processed."}
-    elif result == "already_processed":
-        params = {"error": "This work item is already marked as processed."}
-    else:
-        params = {"error": "The requested work item could not be found."}
-    if include_processed:
-        params["show_processed"] = "1"
-    redirect_url = _build_queue_redirect(request, params)
-    return RedirectResponse(redirect_url, status_code=status.HTTP_303_SEE_OTHER)
-
-
-@router.post("/work-items/{work_id}/delete", response_class=HTMLResponse)
-async def admin_work_items_delete(
-    request: Request,
-    work_id: int,
-    show_processed: Optional[str] = Form("0"),
-) -> Response:
-    include_processed = show_processed == "1"
-    try:
-        deleted = await db.delete_work_item(work_id)
-    except SQLAlchemyError:
-        logger.exception("Failed to delete work item %s", work_id)
-        return await _render_admin_queue(
-            request,
-            show_processed=include_processed,
-            success=None,
-            error="Something went wrong while deleting the work item. Please try again.",
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        )
-
-    params: Dict[str, str]
-    if deleted:
-        params = {"success": "Work item deleted."}
-    else:
-        params = {"error": "The requested work item could not be found."}
-    if include_processed:
-        params["show_processed"] = "1"
-    redirect_url = _build_queue_redirect(request, params)
     return RedirectResponse(redirect_url, status_code=status.HTTP_303_SEE_OTHER)
