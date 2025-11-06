@@ -356,12 +356,14 @@ async def admin_badges_form(
 async def admin_badges_submit(
     request: Request,
     unique_id: str = Form(..., max_length=MAX_BADGE_ID_LENGTH),
+    original_unique_id: Optional[str] = Form(None, max_length=MAX_BADGE_ID_LENGTH),
     name: str = Form(..., max_length=MAX_BADGE_NAME_LENGTH),
     mac_address: str = Form(..., max_length=MAX_BADGE_MAC_ADDRESS_LENGTH),
 ) -> Response:
     unique_id = unique_id.strip()
     name = name.strip()
     mac_address = mac_address.strip()
+    original_unique_id = (original_unique_id or unique_id).strip()
     form_data = {"unique_id": unique_id, "name": name, "mac_address": mac_address}
 
     if not unique_id or not name:
@@ -411,6 +413,45 @@ async def admin_badges_submit(
         )
     form_data["mac_address"] = normalised_mac
 
+    if unique_id != original_unique_id:
+        try:
+            id_result = await db.update_badge_unique_id(original_unique_id, unique_id)
+        except IntegrityError:
+            logger.exception("Conflict while updating badge id %s -> %s", original_unique_id, unique_id)
+            return await _render_admin_create_badge(
+                request,
+                form_data,
+                success=None,
+                error="That badge ID is already in use.",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+        except SQLAlchemyError:
+            logger.exception("Failed to update badge id %s -> %s", original_unique_id, unique_id)
+            return await _render_admin_create_badge(
+                request,
+                form_data,
+                success=None,
+                error="We couldn't update the badge ID right now. Please try again.",
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        if id_result == "not_found":
+            return await _render_admin_create_badge(
+                request,
+                form_data,
+                success=None,
+                error="The original badge ID could not be found.",
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+        if id_result == "conflict":
+            return await _render_admin_create_badge(
+                request,
+                form_data,
+                success=None,
+                error="That badge ID is already in use.",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
     try:
         outcome = await db.create_or_update_badge(
             unique_id=unique_id,
@@ -450,91 +491,6 @@ async def admin_badges_submit(
         }
     )
     redirect_url = f"{request.url_for('admin_badges_form')}?{query_params}"
-    return RedirectResponse(redirect_url, status_code=status.HTTP_303_SEE_OTHER)
-
-
-@router.post("/badges/update-id", response_class=HTMLResponse)
-async def admin_badges_update_id(
-    request: Request,
-    current_unique_id: str = Form(..., max_length=MAX_BADGE_ID_LENGTH),
-    new_unique_id: str = Form(..., max_length=MAX_BADGE_ID_LENGTH),
-) -> Response:
-    current_unique_id = current_unique_id.strip()
-    new_unique_id = new_unique_id.strip()
-    form_data = {
-        "unique_id": new_unique_id,
-        "name": "",
-        "mac_address": "",
-    }
-
-    if not current_unique_id or not new_unique_id:
-        return await _render_admin_create_badge(
-            request,
-            form_data,
-            success=None,
-            error="Both the current and new badge IDs are required.",
-            status_code=status.HTTP_400_BAD_REQUEST,
-        )
-
-    if len(new_unique_id) > MAX_BADGE_ID_LENGTH:
-        return await _render_admin_create_badge(
-            request,
-            form_data,
-            success=None,
-            error=f"New badge ID must be {MAX_BADGE_ID_LENGTH} characters or fewer.",
-            status_code=status.HTTP_400_BAD_REQUEST,
-        )
-
-    try:
-        result = await db.update_badge_unique_id(current_unique_id, new_unique_id)
-    except IntegrityError:
-        logger.exception("MAC conflict while changing badge id from %s to %s", current_unique_id, new_unique_id)
-        return await _render_admin_create_badge(
-            request,
-            form_data,
-            success=None,
-            error="That badge ID is already in use.",
-            status_code=status.HTTP_400_BAD_REQUEST,
-        )
-    except SQLAlchemyError:
-        logger.exception("Failed to change badge id from %s to %s", current_unique_id, new_unique_id)
-        return await _render_admin_create_badge(
-            request,
-            form_data,
-            success=None,
-            error="Something went wrong while updating the badge ID. Please try again.",
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        )
-
-    if result == "not_found":
-        return await _render_admin_create_badge(
-            request,
-            form_data,
-            success=None,
-            error="The original badge ID could not be found.",
-            status_code=status.HTTP_404_NOT_FOUND,
-        )
-    if result == "conflict":
-        return await _render_admin_create_badge(
-            request,
-            form_data,
-            success=None,
-            error="That badge ID is already in use.",
-            status_code=status.HTTP_400_BAD_REQUEST,
-        )
-
-    success_message = (
-        "Badge ID updated successfully."
-        if result == "updated"
-        else "Badge ID left unchanged."
-    )
-    params = urlencode(
-        {
-            "success": success_message,
-            "unique_id": new_unique_id if result == "updated" else current_unique_id,
-        }
-    )
-    redirect_url = f"{request.url_for('admin_badges_form')}?{params}"
     return RedirectResponse(redirect_url, status_code=status.HTTP_303_SEE_OTHER)
 
 

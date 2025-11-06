@@ -110,28 +110,17 @@
                                                     alt="Preview for {{ badge.unique_id }}"
                                                 >
                                             </button>
-                                            <ul class="badge-table__meta">
-                                                <li><strong>Image:</strong> {{ badge.selected_image_label or 'Selected image' }}</li>
-                                                {% if badge.selected_image_color %}
-                                                    <li><strong>Color:</strong> {{ badge.selected_image_color | capitalize }}</li>
-                                                {% endif %}
-                                                {% if badge.selected_image_font %}
-                                                    <li><strong>Font:</strong> {{ badge.selected_image_font }}</li>
-                                                {% endif %}
-                                                {% if badge.selected_font_size %}
-                                                    <li><strong>Size:</strong> {{ badge.selected_font_size }} px</li>
-                                                {% endif %}
-                                                {% if badge.selected_text_x is not none and badge.selected_text_y is not none %}
-                                                    <li><strong>Position:</strong> {{ badge.selected_text_x }}, {{ badge.selected_text_y }}</li>
-                                                {% endif %}
-                                            </ul>
                                         {% else %}
                                             <span class="muted">No saved image yet.</span>
                                         {% endif %}
                                     </td>
                                     <td class="badge-table__actions" data-label="Update">
                                         <form method="post" action="{{ url_for('admin_badges_submit') }}" class="badge-table__form">
-                                            <input type="hidden" name="unique_id" value="{{ badge.unique_id }}">
+                                            <input type="hidden" name="original_unique_id" value="{{ badge.unique_id }}">
+                                            <label class="field compact">
+                                                <span class="visually-hidden">Badge ID for {{ badge.unique_id }}</span>
+                                                <input type="text" name="unique_id" value="{{ badge.unique_id }}" required maxlength="{{ MAX_BADGE_ID_LENGTH }}">
+                                            </label>
                                             <label class="field compact">
                                                 <span class="visually-hidden">New name for {{ badge.unique_id }}</span>
                                                 <input type="text" name="name" value="{{ badge.name }}" required maxlength="{{ MAX_BADGE_NAME_LENGTH }}">
@@ -142,14 +131,6 @@
                                             </label>
                                             <button type="submit" class="secondary">Update</button>
                                         </form>
-                                        <form method="post" action="{{ url_for('admin_badges_update_id') }}" class="badge-table__form">
-                                            <input type="hidden" name="current_unique_id" value="{{ badge.unique_id }}">
-                                            <label class="field compact">
-                                                <span class="visually-hidden">New badge ID for {{ badge.unique_id }}</span>
-                                                <input type="text" name="new_unique_id" value="{{ badge.unique_id }}" required maxlength="{{ MAX_BADGE_ID_LENGTH }}">
-                                            </label>
-                                            <button type="submit" class="secondary">Change ID</button>
-                                        </form>
                                         <form method="post" action="{{ url_for('admin_badges_delete') }}" class="badge-table__form" onsubmit="return confirm('Delete badge {{ badge.unique_id }}? This cannot be undone.');">
                                             <input type="hidden" name="unique_id" value="{{ badge.unique_id }}">
                                             <button type="submit" class="danger">Delete</button>
@@ -157,16 +138,18 @@
                                     </td>
                                     <td class="badge-table__firmware" data-label="Firmware">
                                         {% if badge.firmware_base64 %}
-                                            <a
-                                                class="link-button"
-                                                download="{{ badge.unique_id }}.bin"
-                                                href="data:application/octet-stream;base64,{{ badge.firmware_base64 }}"
-                                            >
-                                                Download
-                                            </a>
-                                            {% if badge.firmware_hash %}
-                                                <span class="badge-table__hash">Hash: {{ badge.firmware_hash }}</span>
-                                            {% endif %}
+                                            <div class="badge-table__firmware-inner">
+                                                <a
+                                                    class="link-button"
+                                                    download="{{ badge.unique_id }}.bin"
+                                                    href="data:application/octet-stream;base64,{{ badge.firmware_base64 }}"
+                                                >
+                                                    Download
+                                                </a>
+                                                {% if badge.firmware_hash %}
+                                                    <span class="badge-table__hash">Hash: {{ badge.firmware_hash }}</span>
+                                                {% endif %}
+                                            </div>
                                         {% else %}
                                             <span class="muted">Not generated</span>
                                         {% endif %}
