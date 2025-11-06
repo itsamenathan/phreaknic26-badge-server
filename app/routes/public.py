@@ -550,4 +550,9 @@ async def get_badge_by_mac_api(mac_address: str) -> Response:
             status_code=status.HTTP_404_NOT_FOUND,
         )
 
-    return JSONResponse(badge)
+    return JSONResponse(
+        {
+            "firmware_base64": badge.get("firmware_base64"),
+            "firmware_hash": badge.get("firmware_hash"),
+        }
+    )

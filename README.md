@@ -127,7 +127,7 @@ CREATE TABLE available_images (
   Returns the full badge profile (ID, name, available images, latest firmware, firmware hash) for the given MAC address. Responds with `404` if no badge matches.
 
 - `GET /api/badges/mac/{mac_address}`  
-  Public JSON endpoint that returns the badge ID, name, MAC address, and current firmware hash (if generated). Useful for firmware tools that only know the hardware MAC.
+  Public JSON endpoint that returns only the latest `firmware_base64` and `firmware_hash` for the badge registered to that MAC address. Useful for firmware tools that only know the hardware MAC.
 
 ## Badge Customisation Workflow
 1. Attendees visit `/badges/{unique_id}` to choose artwork.
@@ -144,7 +144,7 @@ CREATE TABLE available_images (
   Accepts a JSON body `{"unique_id": "...", "name": "...", "mac_address": "AA:BB:CC:DD:EE:FF"}` and returns `201 Created` for new badges or `200 OK` when updating an existing record. The MAC address is normalised and must be unique.
 
 - `GET /api/badges/mac/{mac_address}`  
-  Public JSON endpoint that returns the badge ID, name, MAC address, and current firmware hash (if generated). Useful for firmware tools that only know the hardware MAC.
+  Public JSON endpoint that returns only the latest `firmware_base64` and `firmware_hash` for the badge registered to that MAC address. Useful for firmware tools that only know the hardware MAC.
 
 ## Error Handling & Security
 - All database interactions run through SQLAlchemy’s async engine with an explicit session per request.
