@@ -51,15 +51,15 @@
                         <colgroup>
                             <col class="badge-table__col badge-table__col--identity">
                             <col class="badge-table__col badge-table__col--preview">
-                            <col class="badge-table__col badge-table__col--firmware">
                             <col class="badge-table__col badge-table__col--actions">
+                            <col class="badge-table__col badge-table__col--firmware">
                         </colgroup>
                         <thead>
                             <tr>
                                 <th scope="col">Badge</th>
                                 <th scope="col">Preview</th>
-                                <th scope="col">Firmware</th>
                                 <th scope="col">Update</th>
+                                <th scope="col">Firmware</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -129,6 +129,20 @@
                                             <span class="muted">No saved image yet.</span>
                                         {% endif %}
                                     </td>
+                                    <td class="badge-table__actions" data-label="Update">
+                                        <form method="post" action="{{ url_for('admin_badges_submit') }}">
+                                            <input type="hidden" name="unique_id" value="{{ badge.unique_id }}">
+                                            <label class="field compact">
+                                                <span class="visually-hidden">New name for {{ badge.unique_id }}</span>
+                                                <input type="text" name="name" value="{{ badge.name }}" required maxlength="{{ MAX_BADGE_NAME_LENGTH }}">
+                                            </label>
+                                            <label class="field compact">
+                                                <span class="visually-hidden">MAC for {{ badge.unique_id }}</span>
+                                                <input type="text" name="mac_address" value="{{ badge.mac_address or '' }}" required maxlength="{{ MAX_BADGE_MAC_ADDRESS_LENGTH }}" placeholder="AA:BB:CC:DD:EE:FF">
+                                            </label>
+                                            <button type="submit" class="secondary">Update</button>
+                                        </form>
+                                    </td>
                                     <td class="badge-table__firmware" data-label="Firmware">
                                         {% if badge.firmware_base64 %}
                                             <a
@@ -144,20 +158,6 @@
                                         {% else %}
                                             <span class="muted">Not generated</span>
                                         {% endif %}
-                                    </td>
-                                    <td class="badge-table__actions" data-label="Update">
-                                        <form method="post" action="{{ url_for('admin_badges_submit') }}">
-                                            <input type="hidden" name="unique_id" value="{{ badge.unique_id }}">
-                                            <label class="field compact">
-                                                <span class="visually-hidden">New name for {{ badge.unique_id }}</span>
-                                                <input type="text" name="name" value="{{ badge.name }}" required maxlength="{{ MAX_BADGE_NAME_LENGTH }}">
-                                            </label>
-                                            <label class="field compact">
-                                                <span class="visually-hidden">MAC for {{ badge.unique_id }}</span>
-                                                <input type="text" name="mac_address" value="{{ badge.mac_address or '' }}" required maxlength="{{ MAX_BADGE_MAC_ADDRESS_LENGTH }}" placeholder="AA:BB:CC:DD:EE:FF">
-                                            </label>
-                                            <button type="submit" class="secondary">Update</button>
-                                        </form>
                                     </td>
                                 </tr>
                             {% endfor %}
