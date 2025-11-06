@@ -37,40 +37,116 @@
                 <span>MAC Address</span>
                 <input type="text" name="mac_address" required value="{{ form.mac_address }}" maxlength="{{ MAX_BADGE_MAC_ADDRESS_LENGTH }}" placeholder="AA:BB:CC:DD:EE:FF">
             </label>
-            <button type="submit" class="primary">Save Badge</button>
+            <button type="submit" class="primary">Create Badge</button>
         </form>
 
         <section class="admin-table-section">
             <header class="section-header">
                 <h2>Existing Badges</h2>
-                <p>Review or update attendee names. Click a badge to populate the form above.</p>
+                <p>Review or update attendee info, preview the saved artwork, and download firmware. Click a badge to populate the form above.</p>
             </header>
             {% if badges %}
                 <div class="badge-table-wrapper">
                     <table class="badge-table">
+                        <colgroup>
+                            <col class="badge-table__col badge-table__col--identity">
+                            <col class="badge-table__col badge-table__col--preview">
+                            <col class="badge-table__col badge-table__col--firmware">
+                            <col class="badge-table__col badge-table__col--actions">
+                        </colgroup>
                         <thead>
                             <tr>
-                                <th scope="col">Badge ID</th>
-                                <th scope="col">Name</th>
-                                <th scope="col">MAC Address</th>
-                                <th scope="col">Actions</th>
+                                <th scope="col">Badge</th>
+                                <th scope="col">Preview</th>
+                                <th scope="col">Firmware</th>
+                                <th scope="col">Update</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for badge in badges %}
                                 <tr>
-                                    <td data-label="Badge ID" class="badge-id-cell">
-                                        <a
-                                            class="link-button"
-                                            href="{{ url_for('get_badge', unique_id=badge.unique_id) }}"
-                                        >
-                                            {{ badge.unique_id }}
-                                        </a>
+                                    <td class="badge-table__identity" data-label="Badge">
+                                        <div class="badge-table__identity-group">
+                                            <span class="badge-table__label">ID</span>
+                                            <a
+                                                class="link-button"
+                                                href="{{ url_for('get_badge', unique_id=badge.unique_id) }}"
+                                            >
+                                                {{ badge.unique_id }}
+                                            </a>
+                                        </div>
+                                        <div class="badge-table__identity-group">
+                                            <span class="badge-table__label">Name</span>
+                                            <strong>{{ badge.name }}</strong>
+                                        </div>
+                                        <div class="badge-table__identity-group">
+                                            <span class="badge-table__label">MAC</span>
+                                            <span>{{ badge.mac_address or '—' }}</span>
+                                        </div>
                                     </td>
-                                    <td data-label="Name">{{ badge.name }}</td>
-                                    <td data-label="MAC">{{ badge.mac_address or '—' }}</td>
-                                    <td data-label="Actions">
-                                        <form method="post" action="{{ url_for('admin_badges_submit') }}" class="inline-form">
+                                    <td class="badge-table__preview-cell" data-label="Preview">
+                                        {% if badge.selected_image_data_uri %}
+                                            {% set preview_label = badge.selected_image_label or 'Selected image' %}
+                                            {% set preview_color = badge.selected_image_color %}
+                                            {% set preview_font = badge.selected_image_font %}
+                                            {% set preview_size = badge.selected_font_size %}
+                                            {% if badge.selected_text_x is not none and badge.selected_text_y is not none %}
+                                                {% set preview_position = badge.selected_text_x|string + ', ' + badge.selected_text_y|string %}
+                                            {% else %}
+                                                {% set preview_position = '' %}
+                                            {% endif %}
+                                            <button
+                                                type="button"
+                                                class="badge-table__preview"
+                                                data-lightbox-src="{{ badge.selected_image_data_uri }}"
+                                                data-lightbox-label="{{ preview_label }}"
+                                                data-lightbox-color="{{ preview_color or '' }}"
+                                                data-lightbox-font="{{ preview_font or '' }}"
+                                                data-lightbox-size="{{ preview_size or '' }}"
+                                                data-lightbox-position="{{ preview_position }}"
+                                            >
+                                                <img
+                                                    src="{{ badge.selected_image_data_uri }}"
+                                                    alt="Preview for {{ badge.unique_id }}"
+                                                >
+                                            </button>
+                                            <ul class="badge-table__meta">
+                                                <li><strong>Image:</strong> {{ badge.selected_image_label or 'Selected image' }}</li>
+                                                {% if badge.selected_image_color %}
+                                                    <li><strong>Color:</strong> {{ badge.selected_image_color | capitalize }}</li>
+                                                {% endif %}
+                                                {% if badge.selected_image_font %}
+                                                    <li><strong>Font:</strong> {{ badge.selected_image_font }}</li>
+                                                {% endif %}
+                                                {% if badge.selected_font_size %}
+                                                    <li><strong>Size:</strong> {{ badge.selected_font_size }} px</li>
+                                                {% endif %}
+                                                {% if badge.selected_text_x is not none and badge.selected_text_y is not none %}
+                                                    <li><strong>Position:</strong> {{ badge.selected_text_x }}, {{ badge.selected_text_y }}</li>
+                                                {% endif %}
+                                            </ul>
+                                        {% else %}
+                                            <span class="muted">No saved image yet.</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="badge-table__firmware" data-label="Firmware">
+                                        {% if badge.firmware_base64 %}
+                                            <a
+                                                class="link-button"
+                                                download="{{ badge.unique_id }}.bin"
+                                                href="data:application/octet-stream;base64,{{ badge.firmware_base64 }}"
+                                            >
+                                                Download
+                                            </a>
+                                            {% if badge.firmware_hash %}
+                                                <span class="badge-table__hash">Hash: {{ badge.firmware_hash }}</span>
+                                            {% endif %}
+                                        {% else %}
+                                            <span class="muted">Not generated</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="badge-table__actions" data-label="Update">
+                                        <form method="post" action="{{ url_for('admin_badges_submit') }}">
                                             <input type="hidden" name="unique_id" value="{{ badge.unique_id }}">
                                             <label class="field compact">
                                                 <span class="visually-hidden">New name for {{ badge.unique_id }}</span>
@@ -88,6 +164,102 @@
                         </tbody>
                     </table>
                 </div>
+                <div class="lightbox-overlay" id="badges-lightbox" aria-modal="true" role="dialog" hidden>
+                    <div class="lightbox-content" role="document">
+                        <button type="button" class="lightbox-close" id="badges-lightbox-close">Close</button>
+                        <img id="badges-lightbox-image" alt="Expanded badge preview">
+                        <div class="lightbox-meta" id="badges-lightbox-meta">Preview</div>
+                    </div>
+                </div>
+                <script>
+                    (function () {
+                        const overlay = document.getElementById('badges-lightbox');
+                        if (!overlay) {
+                            return;
+                        }
+
+                        const imageElement = document.getElementById('badges-lightbox-image');
+                        const metaElement = document.getElementById('badges-lightbox-meta');
+                        const closeButton = document.getElementById('badges-lightbox-close');
+                        const previewButtons = Array.from(document.querySelectorAll('.badge-table__preview[data-lightbox-src]'));
+
+                        function closeLightbox() {
+                            overlay.classList.remove('is-visible');
+                            overlay.hidden = true;
+                            imageElement.removeAttribute('src');
+                            imageElement.style.removeProperty('width');
+                            imageElement.style.removeProperty('height');
+                            metaElement.innerHTML = '';
+                        }
+
+                        function renderMeta(button) {
+                            const info = [];
+                            const label = button.dataset.lightboxLabel || 'Preview image';
+                            info.push(`<div><strong>Image:</strong> ${label}</div>`);
+                            if (button.dataset.lightboxColor) {
+                                info.push(`<div><strong>Color:</strong> ${button.dataset.lightboxColor}</div>`);
+                            }
+                            if (button.dataset.lightboxFont) {
+                                info.push(`<div><strong>Font:</strong> ${button.dataset.lightboxFont}</div>`);
+                            }
+                            if (button.dataset.lightboxSize) {
+                                info.push(`<div><strong>Size:</strong> ${button.dataset.lightboxSize} px</div>`);
+                            }
+                            if (button.dataset.lightboxPosition) {
+                                info.push(`<div><strong>Position:</strong> ${button.dataset.lightboxPosition}</div>`);
+                            }
+                            metaElement.innerHTML = info.join('');
+                        }
+
+                        function openLightbox(button) {
+                            const src = button.dataset.lightboxSrc;
+                            if (!src) {
+                                return;
+                            }
+
+                            imageElement.onload = () => {
+                                const SCALE = 4;
+                                const maxWidth = window.innerWidth * 0.9;
+                                const maxHeight = window.innerHeight * 0.85;
+                                let width = imageElement.naturalWidth * SCALE;
+                                let height = imageElement.naturalHeight * SCALE;
+                                const scaleFactor = Math.min(maxWidth / width, maxHeight / height, 1);
+                                width *= scaleFactor;
+                                height *= scaleFactor;
+                                imageElement.style.width = `${width}px`;
+                                imageElement.style.height = `${height}px`;
+                            };
+                            imageElement.src = src;
+                            const label = button.dataset.lightboxLabel || 'Preview image';
+                            imageElement.alt = `${label} enlarged`;
+                            renderMeta(button);
+                            overlay.hidden = false;
+                            requestAnimationFrame(() => overlay.classList.add('is-visible'));
+                        }
+
+                        previewButtons.forEach((button) => {
+                            button.addEventListener('click', () => openLightbox(button));
+                            button.addEventListener('keydown', (event) => {
+                                if (event.key === 'Enter' || event.key === ' ') {
+                                    event.preventDefault();
+                                    openLightbox(button);
+                                }
+                            });
+                        });
+
+                        closeButton.addEventListener('click', closeLightbox);
+                        overlay.addEventListener('click', (event) => {
+                            if (event.target === overlay) {
+                                closeLightbox();
+                            }
+                        });
+                        document.addEventListener('keydown', (event) => {
+                            if (event.key === 'Escape' && !overlay.hidden) {
+                                closeLightbox();
+                            }
+                        });
+                    })();
+                </script>
             {% else %}
                 <p class="empty-state">No badges have been registered yet.</p>
             {% endif %}

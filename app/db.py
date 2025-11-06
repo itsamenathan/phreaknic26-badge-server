@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
 from typing import Any, AsyncIterator, Dict, List, Optional
 
 from sqlalchemy import select
@@ -14,7 +13,7 @@ from sqlalchemy.ext.asyncio import (
 
 from .config import Settings, get_settings
 from .constants import DEFAULT_IMAGE_COLOR, DEFAULT_IMAGE_FONT
-from .models import AvailableImage, Badge, Base, WorkQueue
+from .models import AvailableImage, Badge, Base
 
 
 class Database:
@@ -118,6 +117,16 @@ class Database:
                 "unique_id": badge.unique_id,
                 "name": badge.name,
                 "mac_address": badge.mac_address,
+                "firmware_base64": badge.firmware_base64,
+                "firmware_hash": badge.firmware_hash,
+                "selected_image_label": badge.selected_image_label,
+                "selected_image_base64": badge.selected_image_base64,
+                "selected_image_mime_type": badge.selected_image_mime_type,
+                "selected_image_color": badge.selected_image_color,
+                "selected_image_font": badge.selected_image_font,
+                "selected_font_size": badge.selected_font_size,
+                "selected_text_x": badge.selected_text_x,
+                "selected_text_y": badge.selected_text_y,
                 "images": images,
             }
 
@@ -145,6 +154,16 @@ class Database:
                 "unique_id": badge.unique_id,
                 "name": badge.name,
                 "mac_address": badge.mac_address,
+                "firmware_base64": badge.firmware_base64,
+                "firmware_hash": badge.firmware_hash,
+                "selected_image_label": badge.selected_image_label,
+                "selected_image_base64": badge.selected_image_base64,
+                "selected_image_mime_type": badge.selected_image_mime_type,
+                "selected_image_color": badge.selected_image_color,
+                "selected_image_font": badge.selected_image_font,
+                "selected_font_size": badge.selected_font_size,
+                "selected_text_x": badge.selected_text_x,
+                "selected_text_y": badge.selected_text_y,
                 "images": images,
             }
 
@@ -159,12 +178,22 @@ class Database:
                 "unique_id": badge.unique_id,
                 "name": badge.name,
                 "mac_address": badge.mac_address,
+                "firmware_base64": badge.firmware_base64,
+                "firmware_hash": badge.firmware_hash,
+                "selected_image_label": badge.selected_image_label,
+                "selected_image_base64": badge.selected_image_base64,
+                "selected_image_mime_type": badge.selected_image_mime_type,
+                "selected_image_color": badge.selected_image_color,
+                "selected_image_font": badge.selected_image_font,
+                "selected_font_size": badge.selected_font_size,
+                "selected_text_x": badge.selected_text_x,
+                "selected_text_y": badge.selected_text_y,
             }
 
-    async def enqueue_selection(
+    async def save_badge_render(
         self,
         unique_id: str,
-        name: str,
+        *,
         image_label: str,
         image_base64: str,
         image_mime_type: Optional[str],
@@ -173,21 +202,26 @@ class Database:
         font_size: Optional[int],
         text_x: Optional[int],
         text_y: Optional[int],
-    ) -> None:
+        firmware_base64: str,
+        firmware_hash: str,
+    ) -> bool:
         async with self.session() as session:
-            work_item = WorkQueue(
-                unique_id=unique_id,
-                name=name,
-                image_label=image_label,
-                image_base64=image_base64,
-                image_mime_type=image_mime_type,
-                image_color=image_color or DEFAULT_IMAGE_COLOR,
-                image_font=image_font or DEFAULT_IMAGE_FONT,
-                font_size=font_size,
-                text_x=text_x,
-                text_y=text_y,
-            )
-            session.add(work_item)
+            stmt = select(Badge).where(Badge.unique_id == unique_id)
+            badge = await session.scalar(stmt)
+            if badge is None:
+                return False
+
+            badge.selected_image_label = image_label
+            badge.selected_image_base64 = image_base64
+            badge.selected_image_mime_type = image_mime_type
+            badge.selected_image_color = image_color
+            badge.selected_image_font = image_font
+            badge.selected_font_size = font_size
+            badge.selected_text_x = text_x
+            badge.selected_text_y = text_y
+            badge.firmware_base64 = firmware_base64
+            badge.firmware_hash = firmware_hash
+        return True
 
     async def store_available_image(
         self,
@@ -277,107 +311,31 @@ class Database:
             rows = await session.scalars(stmt)
             badges = rows.all()
 
-        return [
-            {
-                "unique_id": badge.unique_id,
-                "name": badge.name,
-                "mac_address": badge.mac_address,
-            }
-            for badge in badges
-        ]
-
-    async def list_work_items(
-        self,
-        *,
-        include_processed: bool = False,
-        limit: int = 50,
-    ) -> List[Dict[str, Any]]:
-        async with self.session() as session:
-            stmt = select(WorkQueue).order_by(WorkQueue.created_at.desc())
-            if not include_processed:
-                stmt = stmt.where(WorkQueue.processed_at.is_(None))
-            stmt = stmt.limit(limit)
-            result = await session.scalars(stmt)
-            items = result.all()
-
-        work_items: List[Dict[str, Any]] = []
-        for item in items:
-            mime_type = item.image_mime_type or "image/png"
-            work_items.append(
+        results: List[Dict[str, Any]] = []
+        for badge in badges:
+            image_base64 = badge.selected_image_base64 or ""
+            image_mime = badge.selected_image_mime_type or "image/png"
+            image_data_uri = None
+            if image_base64:
+                image_data_uri = f"data:{image_mime};base64,{image_base64}"
+            results.append(
                 {
-                    "id": item.id,
-                    "unique_id": item.unique_id,
-                    "name": item.name,
-                    "image_label": item.image_label,
-                    "image_mime_type": mime_type,
-                    "image_base64": item.image_base64,
-                    "image_data_uri": f"data:{mime_type};base64,{item.image_base64}",
-                    "image_color": item.image_color or DEFAULT_IMAGE_COLOR,
-                    "image_font": item.image_font or DEFAULT_IMAGE_FONT,
-                    "font_size": item.font_size,
-                    "text_x": item.text_x,
-                    "text_y": item.text_y,
-                    "created_at": item.created_at.isoformat() if item.created_at else None,
-                    "processed_at": item.processed_at.isoformat() if item.processed_at else None,
-                    "is_processed": item.processed_at is not None,
+                    "unique_id": badge.unique_id,
+                    "name": badge.name,
+                    "mac_address": badge.mac_address,
+                    "firmware_base64": badge.firmware_base64,
+                    "firmware_hash": badge.firmware_hash,
+                    "selected_image_label": badge.selected_image_label,
+                    "selected_image_base64": image_base64,
+                    "selected_image_mime_type": badge.selected_image_mime_type,
+                    "selected_image_color": badge.selected_image_color,
+                    "selected_image_font": badge.selected_image_font,
+                    "selected_font_size": badge.selected_font_size,
+                    "selected_text_x": badge.selected_text_x,
+                    "selected_text_y": badge.selected_text_y,
+                    "selected_image_data_uri": image_data_uri,
                 }
             )
-
-        return work_items
-
-    async def mark_work_item_processed(self, work_id: int) -> str:
-        async with self.session() as session:
-            stmt = select(WorkQueue).where(WorkQueue.id == work_id)
-            work_item = await session.scalar(stmt)
-            if work_item is None:
-                return "not_found"
-            if work_item.processed_at is not None:
-                return "already_processed"
-
-            work_item.processed_at = datetime.now(timezone.utc)
-
-        return "marked"
-
-    async def delete_work_item(self, work_id: int) -> bool:
-        async with self.session() as session:
-            stmt = select(WorkQueue).where(WorkQueue.id == work_id)
-            work_item = await session.scalar(stmt)
-            if work_item is None:
-                return False
-
-            await session.delete(work_item)
-
-        return True
-
-    async def get_oldest_work(self) -> Optional[Dict[str, Any]]:
-        async with self.session() as session:
-            stmt = (
-                select(WorkQueue)
-                .where(WorkQueue.processed_at.is_(None))
-                .order_by(WorkQueue.created_at.asc())
-                .with_for_update(skip_locked=True)
-                .limit(1)
-            )
-            work = await session.scalar(stmt)
-            if work is None:
-                return None
-
-            work.processed_at = datetime.now(timezone.utc)
-            await session.flush()
-
-            return {
-                "unique_id": work.unique_id,
-                "name": work.name,
-                "image_label": work.image_label,
-                "image_base64": work.image_base64,
-                "image_mime_type": work.image_mime_type,
-                "image_color": work.image_color or DEFAULT_IMAGE_COLOR,
-                "image_font": work.image_font or DEFAULT_IMAGE_FONT,
-                "font_size": work.font_size,
-                "text_x": work.text_x,
-                "text_y": work.text_y,
-                "created_at": work.created_at.isoformat() if work.created_at else None,
-            }
-
+        return results
 
 db = Database()

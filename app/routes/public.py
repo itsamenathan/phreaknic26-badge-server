@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import logging
 from typing import Any, Dict, Optional
 
@@ -23,6 +24,10 @@ from ..constants import (
     MIN_BADGE_FONT_SIZE,
 )
 from ..services.badge_renderer import render_badge_image
+from ..services.firmware_builder import (
+    FirmwareGenerationError,
+    generate_firmware_from_image,
+)
 from ..utils import normalise_mac_address
 
 
@@ -99,6 +104,22 @@ def _render_selection_page(
         text_y=current_form.get("text_y"),
         display_name=current_form.get("display_name"),
     )
+    if profile and not current_form:
+        saved_label = profile.get("selected_image_label")
+        if saved_label:
+            form_data["image_label"] = saved_label
+        saved_font_size = profile.get("selected_font_size")
+        if isinstance(saved_font_size, int) and saved_font_size >= MIN_BADGE_FONT_SIZE:
+            form_data["font_size"] = max(
+                MIN_BADGE_FONT_SIZE,
+                min(MAX_BADGE_FONT_SIZE, saved_font_size),
+            )
+        saved_x = profile.get("selected_text_x")
+        saved_y = profile.get("selected_text_y")
+        if saved_x is not None:
+            form_data["text_x"] = str(max(int(saved_x), 0))
+        if saved_y is not None:
+            form_data["text_y"] = str(max(int(saved_y), 0))
     return templates.TemplateResponse(
         "selection.html",
         {
@@ -399,9 +420,24 @@ async def post_badge(
         )
 
     try:
-        await db.enqueue_selection(
-            unique_id=profile["unique_id"],
-            name=effective_name,
+        firmware_bytes, firmware_hash = generate_firmware_from_image(personalised_base64)
+    except FirmwareGenerationError:
+        logger.exception("Failed to generate firmware for %s", unique_id)
+        return _render_selection_page(
+            request,
+            profile=profile,
+            error="We couldn't prepare the firmware right now. Please try again.",
+            sent=False,
+            form=form_state,
+            is_admin=is_admin,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+    firmware_base64 = base64.b64encode(firmware_bytes).decode("ascii")
+
+    try:
+        saved = await db.save_badge_render(
+            profile["unique_id"],
             image_label=selected_image["label"],
             image_base64=personalised_base64,
             image_mime_type=selected_image.get("image_mime_type") or "image/png",
@@ -410,18 +446,34 @@ async def post_badge(
             font_size=form_state["font_size"],
             text_x=text_x_value,
             text_y=text_y_value,
+            firmware_base64=firmware_base64,
+            firmware_hash=firmware_hash,
         )
     except SQLAlchemyError:
-        logger.exception("Failed to enqueue selection for %s", unique_id)
+        logger.exception("Failed to store selection for %s", unique_id)
         return _render_selection_page(
             request,
             profile=profile,
-            error="We couldn't save your selection right now. Please try again.",
+            error="We couldn't save your badge right now. Please try again.",
             sent=False,
             form=form_state,
             is_admin=is_admin,
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
+    if not saved:
+        return _render_selection_page(
+            request,
+            profile=profile,
+            error="Badge not found while saving your selection.",
+            sent=False,
+            form=form_state,
+            is_admin=is_admin,
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+
+    profile = profile.copy()
+    profile["firmware_base64"] = firmware_base64
+    profile["firmware_hash"] = firmware_hash
 
     redirect_url = request.url_for("get_badge", unique_id=unique_id)
     redirect_url = f"{redirect_url}?sent=1"

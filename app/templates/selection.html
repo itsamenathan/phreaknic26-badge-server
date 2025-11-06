@@ -15,7 +15,7 @@
             </header>
             {% if sent %}
                 <div class="alert success" role="status">
-                    Image sent to the queue successfully.
+                    Badge saved successfully.
                 </div>
             {% endif %}
             {% if error %}
@@ -87,7 +87,7 @@
                     {% endfor %}
                 </div>
                 <button type="submit" class="primary" id="send-button" {% if not form.image_label %}disabled{% endif %}>
-                    Send
+                    Save
                 </button>
             </form>
         {% else %}
@@ -326,15 +326,18 @@
                     return;
                 }
 
-                const inset = 5 * currentScale;
-                const guideHeight = 27 * currentScale;
+                const rawInset = 5;
+                const rawHeight = 22;
+                const inset = rawInset * currentScale;
                 const containerWidth = previewContainer.clientWidth || (previewImage.naturalWidth * currentScale);
+                const containerHeight = previewContainer.clientHeight || (previewImage.naturalHeight * currentScale);
                 const guideWidth = Math.max(containerWidth - inset * 2, 0);
+                const clampedHeight = Math.min(containerHeight - inset * 2, rawHeight * currentScale);
 
                 previewGuide.style.top = `${inset}px`;
                 previewGuide.style.left = `${inset}px`;
                 previewGuide.style.width = `${guideWidth}px`;
-                previewGuide.style.height = `${guideHeight}px`;
+                previewGuide.style.height = `${Math.max(clampedHeight, 0)}px`;
                 previewGuide.style.display = 'block';
             }
 
@@ -344,8 +347,8 @@
                 }
                 const rawX = displayX / currentScale;
                 const rawY = displayY / currentScale;
-                textXInput.value = Math.round(rawX);
-                textYInput.value = Math.round(rawY);
+                textXInput.value = Math.max(0, Math.floor(rawX));
+                textYInput.value = Math.max(0, Math.floor(rawY));
             }
 
             function setOverlayPosition(displayX, displayY) {
