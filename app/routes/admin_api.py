@@ -7,7 +7,6 @@ from fastapi import APIRouter, Depends, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
-from starlette.responses import Response
 
 from ..constants import (
     MAX_BADGE_ID_LENGTH,
@@ -86,33 +85,3 @@ async def admin_create_badge_api(
         },
         status_code=status_code,
     )
-
-
-@router.get("/badges/mac/{mac_address}", response_class=JSONResponse)
-async def admin_get_badge_by_mac(
-    mac_address: str,
-    _credentials=Depends(verify_credentials),
-) -> Response:
-    normalised = normalise_mac_address(mac_address)
-    if normalised is None:
-        return JSONResponse(
-            {"detail": "Invalid MAC address. Use format AA:BB:CC:DD:EE:FF."},
-            status_code=status.HTTP_400_BAD_REQUEST,
-        )
-
-    try:
-        profile = await db.fetch_profile_by_mac(normalised)
-    except SQLAlchemyError:
-        logger.exception("Failed to fetch badge for MAC %s", mac_address)
-        return JSONResponse(
-            {"detail": "Failed to look up that badge. Please try again."},
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        )
-
-    if profile is None:
-        return JSONResponse(
-            {"detail": "Badge not found."},
-            status_code=status.HTTP_404_NOT_FOUND,
-        )
-
-    return JSONResponse(profile)

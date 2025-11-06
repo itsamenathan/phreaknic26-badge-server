@@ -130,43 +130,6 @@ class Database:
                 "images": images,
             }
 
-    async def fetch_profile_by_mac(self, mac_address: str) -> Optional[Dict[str, Any]]:
-        async with self.session() as session:
-            badge_stmt = select(Badge).where(Badge.mac_address == mac_address)
-            badge = await session.scalar(badge_stmt)
-            if badge is None:
-                return None
-
-            image_stmt = select(AvailableImage).order_by(AvailableImage.image_label)
-            image_rows = await session.scalars(image_stmt)
-            images: List[Dict[str, Any]] = [
-                {
-                    "label": image.image_label,
-                    "image_base64": image.image_base64,
-                    "image_mime_type": image.image_mime_type,
-                    "image_color": image.image_color or DEFAULT_IMAGE_COLOR,
-                    "image_font": image.image_font or DEFAULT_IMAGE_FONT,
-                }
-                for image in image_rows
-            ]
-
-            return {
-                "unique_id": badge.unique_id,
-                "name": badge.name,
-                "mac_address": badge.mac_address,
-                "firmware_base64": badge.firmware_base64,
-                "firmware_hash": badge.firmware_hash,
-                "selected_image_label": badge.selected_image_label,
-                "selected_image_base64": badge.selected_image_base64,
-                "selected_image_mime_type": badge.selected_image_mime_type,
-                "selected_image_color": badge.selected_image_color,
-                "selected_image_font": badge.selected_image_font,
-                "selected_font_size": badge.selected_font_size,
-                "selected_text_x": badge.selected_text_x,
-                "selected_text_y": badge.selected_text_y,
-                "images": images,
-            }
-
     async def get_badge_by_mac(self, mac_address: str) -> Optional[Dict[str, Any]]:
         async with self.session() as session:
             stmt = select(Badge).where(Badge.mac_address == mac_address)
