@@ -130,7 +130,7 @@
                                         {% endif %}
                                     </td>
                                     <td class="badge-table__actions" data-label="Update">
-                                        <form method="post" action="{{ url_for('admin_badges_submit') }}">
+                                        <form method="post" action="{{ url_for('admin_badges_submit') }}" class="badge-table__form">
                                             <input type="hidden" name="unique_id" value="{{ badge.unique_id }}">
                                             <label class="field compact">
                                                 <span class="visually-hidden">New name for {{ badge.unique_id }}</span>
@@ -141,6 +141,18 @@
                                                 <input type="text" name="mac_address" value="{{ badge.mac_address or '' }}" required maxlength="{{ MAX_BADGE_MAC_ADDRESS_LENGTH }}" placeholder="AA:BB:CC:DD:EE:FF">
                                             </label>
                                             <button type="submit" class="secondary">Update</button>
+                                        </form>
+                                        <form method="post" action="{{ url_for('admin_badges_update_id') }}" class="badge-table__form">
+                                            <input type="hidden" name="current_unique_id" value="{{ badge.unique_id }}">
+                                            <label class="field compact">
+                                                <span class="visually-hidden">New badge ID for {{ badge.unique_id }}</span>
+                                                <input type="text" name="new_unique_id" value="{{ badge.unique_id }}" required maxlength="{{ MAX_BADGE_ID_LENGTH }}">
+                                            </label>
+                                            <button type="submit" class="secondary">Change ID</button>
+                                        </form>
+                                        <form method="post" action="{{ url_for('admin_badges_delete') }}" class="badge-table__form" onsubmit="return confirm('Delete badge {{ badge.unique_id }}? This cannot be undone.');">
+                                            <input type="hidden" name="unique_id" value="{{ badge.unique_id }}">
+                                            <button type="submit" class="danger">Delete</button>
                                         </form>
                                     </td>
                                     <td class="badge-table__firmware" data-label="Firmware">

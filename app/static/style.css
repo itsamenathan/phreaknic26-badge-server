@@ -504,6 +504,10 @@ p {
     max-width: 320px;
 }
 
+.badge-table__form + .badge-table__form {
+    margin-top: 0.65rem;
+}
+
 .badge-table__actions .field.compact {
     margin: 0;
 }

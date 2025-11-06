@@ -3,7 +3,7 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from typing import Any, AsyncIterator, Dict, List, Optional
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import (
 
 from .config import Settings, get_settings
 from .constants import DEFAULT_IMAGE_COLOR, DEFAULT_IMAGE_FONT
-from .models import AvailableImage, Badge, Base
+from .models import AvailableImage, Badge, BadgeImage, Base
 
 
 class Database:
@@ -257,6 +257,23 @@ class Database:
             badge.mac_address = mac_address
             return "updated"
 
+    async def update_badge_unique_id(self, current_id: str, new_id: str) -> str:
+        async with self.session() as session:
+            badge = await session.scalar(select(Badge).where(Badge.unique_id == current_id))
+            if badge is None:
+                return "not_found"
+            if current_id == new_id:
+                return "unchanged"
+            existing = await session.scalar(select(Badge).where(Badge.unique_id == new_id))
+            if existing is not None:
+                return "conflict"
+
+            await session.execute(
+                update(BadgeImage).where(BadgeImage.unique_id == current_id).values(unique_id=new_id)
+            )
+            badge.unique_id = new_id
+        return "updated"
+
     async def update_badge_name(self, unique_id: str, name: str) -> bool:
         async with self.session() as session:
             stmt = select(Badge).where(Badge.unique_id == unique_id)
@@ -266,6 +283,14 @@ class Database:
 
             badge.name = name
 
+        return True
+
+    async def delete_badge(self, unique_id: str) -> bool:
+        async with self.session() as session:
+            badge = await session.scalar(select(Badge).where(Badge.unique_id == unique_id))
+            if badge is None:
+                return False
+            await session.delete(badge)
         return True
 
     async def list_badges(self, limit: int = 100) -> List[Dict[str, Any]]:
