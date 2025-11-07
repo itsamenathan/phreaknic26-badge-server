@@ -2,16 +2,17 @@ from __future__ import annotations
 
 import base64
 import logging
+import re
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, Depends, Form, Request, status
+from fastapi import APIRouter, Form, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from starlette.responses import Response
 
 from sqlalchemy.exc import SQLAlchemyError
 
 from ..db import db
-from ..dependencies import is_admin_user, templates
+from ..dependencies import templates
 from ..constants import (
     DEFAULT_BADGE_FONT_SIZE,
     DEFAULT_BADGE_TEXT_LOCATION,
@@ -33,6 +34,18 @@ from ..utils import normalise_mac_address
 
 router = APIRouter(tags=["public"])
 logger = logging.getLogger(__name__)
+
+_NAME_ALLOWED_RE = re.compile(r'^[A-Za-z0-9 :.,!?"\'_-]+$')
+
+
+def _clean_display_name(value: Optional[str]) -> str:
+    if value in (None, ""):
+        return ""
+    return re.sub(r"\s+", " ", value).strip()
+
+
+def _is_valid_display_name(value: str) -> bool:
+    return bool(value) and bool(_NAME_ALLOWED_RE.fullmatch(value))
 
 
 def _build_selection_form(
@@ -80,8 +93,9 @@ def _build_selection_form(
         else:
             form_data["text_y"] = str(max(parsed_y, 0))
 
-    if display_name not in (None, ""):
-        form_data["display_name"] = display_name.strip()
+    cleaned_display_name = _clean_display_name(display_name)
+    if cleaned_display_name:
+        form_data["display_name"] = cleaned_display_name
 
     return form_data
 
@@ -92,7 +106,6 @@ def _render_selection_page(
     profile: Optional[Dict[str, Any]],
     error: Optional[str],
     sent: bool,
-    is_admin: bool = False,
     form: Optional[Dict[str, Any]] = None,
     status_code: int = status.HTTP_200_OK,
 ) -> Response:
@@ -128,7 +141,6 @@ def _render_selection_page(
             "error": error,
             "sent": sent,
             "form": form_data,
-            "is_admin": is_admin,
             "MIN_BADGE_FONT_SIZE": MIN_BADGE_FONT_SIZE,
             "MAX_BADGE_FONT_SIZE": MAX_BADGE_FONT_SIZE,
             "MAX_BADGE_NAME_LENGTH": MAX_BADGE_NAME_LENGTH,
@@ -221,7 +233,6 @@ async def get_badge(
     unique_id: str,
     sent: Optional[str] = None,
     error: Optional[str] = None,
-    is_admin: bool = Depends(is_admin_user),
 ) -> Response:
     unique_id = unique_id.strip()
     if len(unique_id) > MAX_BADGE_ID_LENGTH:
@@ -230,7 +241,6 @@ async def get_badge(
             profile=None,
             error="Badge not found",
             sent=False,
-            is_admin=is_admin,
             status_code=status.HTTP_404_NOT_FOUND,
         )
 
@@ -243,7 +253,6 @@ async def get_badge(
             profile=None,
             error="Something went wrong while retrieving your badge. Please try again.",
             sent=False,
-            is_admin=is_admin,
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
     if profile is None:
@@ -252,7 +261,6 @@ async def get_badge(
             profile=None,
             error=error or "Badge not found",
             sent=False,
-            is_admin=is_admin,
             status_code=status.HTTP_404_NOT_FOUND,
         )
 
@@ -261,7 +269,6 @@ async def get_badge(
         profile=profile,
         error=error,
         sent=sent is not None,
-        is_admin=is_admin,
     )
 
 
@@ -274,7 +281,6 @@ async def post_badge(
     text_x: Optional[str] = Form(None),
     text_y: Optional[str] = Form(None),
     override_name: Optional[str] = Form(None, max_length=MAX_BADGE_NAME_LENGTH),
-    is_admin: bool = Depends(is_admin_user),
 ) -> Response:
     unique_id = unique_id.strip()
     if len(unique_id) > MAX_BADGE_ID_LENGTH:
@@ -283,12 +289,11 @@ async def post_badge(
             profile=None,
             error="Badge not found",
             sent=False,
-            is_admin=is_admin,
             status_code=status.HTTP_404_NOT_FOUND,
         )
 
     image_label = image_label.strip()
-    display_name = override_name if (is_admin and override_name) else None
+    display_name = _clean_display_name(override_name)
     form_state = _build_selection_form(
         font_size=font_size,
         image_label=image_label,
@@ -315,7 +320,6 @@ async def post_badge(
             error="Something went wrong while retrieving your badge. Please try again.",
             sent=False,
             form=form_state,
-            is_admin=is_admin,
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
     if profile is None:
@@ -325,7 +329,6 @@ async def post_badge(
             error="Badge not found",
             sent=False,
             form=form_state,
-            is_admin=is_admin,
             status_code=status.HTTP_404_NOT_FOUND,
         )
 
@@ -354,36 +357,43 @@ async def post_badge(
             error="Please select a valid image.",
             sent=False,
             form=form_state,
-            is_admin=is_admin,
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
-    effective_name = profile["name"]
-    if is_admin and override_name is not None:
-        new_name = override_name.strip()
-        if not new_name:
-            return _render_selection_page(
-                request,
-                profile=profile,
-                error="Name cannot be blank.",
-                sent=False,
-                form=form_state,
-                is_admin=is_admin,
-                status_code=status.HTTP_400_BAD_REQUEST,
-            )
-        if len(new_name) > MAX_BADGE_NAME_LENGTH:
-            return _render_selection_page(
-                request,
-                profile=profile,
-                error=f"Name must be {MAX_BADGE_NAME_LENGTH} characters or fewer.",
-                sent=False,
-                form=form_state,
-                is_admin=is_admin,
-                status_code=status.HTTP_400_BAD_REQUEST,
-            )
-        effective_name = new_name
+    stored_name = profile.get("name") or ""
+    submitted_name = display_name or _clean_display_name(stored_name)
+    if not submitted_name:
+        return _render_selection_page(
+            request,
+            profile=profile,
+            error="Name cannot be blank.",
+            sent=False,
+            form=form_state,
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    if len(submitted_name) > MAX_BADGE_NAME_LENGTH:
+        return _render_selection_page(
+            request,
+            profile=profile,
+            error=f"Name must be {MAX_BADGE_NAME_LENGTH} characters or fewer.",
+            sent=False,
+            form=form_state,
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    if not _is_valid_display_name(submitted_name):
+        return _render_selection_page(
+            request,
+            profile=profile,
+            error="Name can only include letters, numbers, spaces, and basic punctuation (:.,!?\"'-_)",
+            sent=False,
+            form=form_state,
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    effective_name = submitted_name
+    if effective_name != stored_name:
         try:
-            await db.update_badge_name(profile["unique_id"], new_name)
+            await db.update_badge_name(profile["unique_id"], effective_name)
         except SQLAlchemyError:
             logger.exception("Failed to update badge name for %s", unique_id)
             return _render_selection_page(
@@ -392,11 +402,11 @@ async def post_badge(
                 error="We couldn't update the badge name right now. Please try again.",
                 sent=False,
                 form=form_state,
-                is_admin=is_admin,
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
-        profile = profile.copy()
-        profile["name"] = effective_name
+
+    profile = profile.copy()
+    profile["name"] = effective_name
 
     try:
         personalised_base64 = render_badge_image(
@@ -415,7 +425,6 @@ async def post_badge(
             error="We couldn't personalise that image. Please adjust your options or try again.",
             sent=False,
             form=form_state,
-            is_admin=is_admin,
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
 
@@ -429,7 +438,6 @@ async def post_badge(
             error="We couldn't prepare the firmware right now. Please try again.",
             sent=False,
             form=form_state,
-            is_admin=is_admin,
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
 
@@ -457,7 +465,6 @@ async def post_badge(
             error="We couldn't save your badge right now. Please try again.",
             sent=False,
             form=form_state,
-            is_admin=is_admin,
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
     if not saved:
@@ -467,7 +474,6 @@ async def post_badge(
             error="Badge not found while saving your selection.",
             sent=False,
             form=form_state,
-            is_admin=is_admin,
             status_code=status.HTTP_404_NOT_FOUND,
         )
 

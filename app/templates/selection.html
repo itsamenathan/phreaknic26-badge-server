@@ -11,7 +11,7 @@
         {% if profile %}
             <header>
                 <h1>{{ form.display_name or profile.name }}</h1>
-                <p>Select the image you want to send for <strong>{{ profile.unique_id }}</strong>.</p>
+                <p>Select and customize your badge frame below.</p>
             </header>
             {% if sent %}
                 <div class="alert success" role="status">
@@ -27,18 +27,18 @@
                 <input type="hidden" name="image_label" id="selected-label" value="{{ form.image_label }}">
                 <input type="hidden" name="text_x" id="text-x" value="{{ form.text_x }}">
                 <input type="hidden" name="text_y" id="text-y" value="{{ form.text_y }}">
-                {% if is_admin %}
-                    <label class="field">
-                        <span>Override Name</span>
-                        <input
-                            type="text"
-                            name="override_name"
-                            id="badge-name-input"
-                            value="{{ form.display_name or profile.name }}"
-                            maxlength="{{ MAX_BADGE_NAME_LENGTH }}"
-                        >
-                    </label>
-                {% endif %}
+                <label class="field">
+                    <span>Name</span>
+                    <input
+                        type="text"
+                        name="override_name"
+                        id="badge-name-input"
+                        value="{{ form.display_name or profile.name }}"
+                        maxlength="{{ MAX_BADGE_NAME_LENGTH }}"
+                        pattern="[A-Za-z0-9 :.,!?'&quot;_-]+"
+                        title="Use letters, numbers, spaces, and : . , ! ? \" ' - _"
+                    >
+                </label>
                 <div class="badge-editor{% if not form.image_label %} badge-editor--inactive{% endif %}" id="badge-editor">
                     <div class="badge-preview badge-preview--empty" id="badge-preview">
                         <img id="badge-preview-image" alt="" aria-hidden="true">
