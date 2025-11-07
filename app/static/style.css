@@ -338,6 +338,25 @@ p {
     margin-top: 1.25rem;
 }
 
+.badge-table__toolbar {
+    display: flex;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+}
+
+.badge-table__search {
+    width: 100%;
+    max-width: 320px;
+}
+
+.badge-table__search-message {
+    margin-top: 0.85rem;
+    text-align: right;
+    font-size: 0.85rem;
+}
+
 .badge-table {
     width: 100%;
     border-collapse: collapse;
@@ -706,7 +725,8 @@ p {
 
 .field input[type="text"],
 .field input[type="file"],
-.field input[type="number"] {
+.field input[type="number"],
+.field input[type="search"] {
     padding: 0.75rem 1rem;
     border-radius: 10px;
     border: 1px solid rgba(48, 255, 152, 0.28);
@@ -734,7 +754,8 @@ p {
 
 .field input[type="text"]:focus,
 .field input[type="file"]:focus,
-.field input[type="number"]:focus {
+.field input[type="number"]:focus,
+.field input[type="search"]:focus {
     outline: 2px solid rgba(48, 255, 152, 0.55);
     border-color: rgba(48, 255, 152, 0.6);
 }

@@ -46,8 +46,20 @@
                 <p>Review or update attendee info, preview the saved artwork, and download firmware. Click a badge to populate the form above.</p>
             </header>
             {% if badges %}
+                <div class="badge-table__toolbar">
+                    <label class="field badge-table__search">
+                        <span class="visually-hidden">Search badges</span>
+                        <input
+                            type="search"
+                            id="badge-search"
+                            placeholder="Search"
+                            aria-label="Search badges"
+                            autocomplete="off"
+                        >
+                    </label>
+                </div>
                 <div class="badge-table-wrapper">
-                    <table class="badge-table">
+                    <table class="badge-table" id="badge-table">
                         <colgroup>
                             <col class="badge-table__col badge-table__col--identity">
                             <col class="badge-table__col badge-table__col--preview">
@@ -64,7 +76,11 @@
                         </thead>
                         <tbody>
                             {% for badge in badges %}
-                                <tr>
+                                <tr
+                                    data-badge-id="{{ badge.unique_id|lower }}"
+                                    data-badge-name="{{ badge.name|lower }}"
+                                    data-badge-mac="{{ (badge.mac_address or '')|lower }}"
+                                >
                                     <td class="badge-table__identity" data-label="Badge">
                                         <div class="badge-table__identity-group">
                                             <span class="badge-table__label">ID</span>
@@ -159,6 +175,9 @@
                         </tbody>
                     </table>
                 </div>
+                <p class="badge-table__search-message muted" data-badge-search-empty aria-live="polite" hidden>
+                    No badges match your search.
+                </p>
                 <div class="lightbox-overlay" id="badges-lightbox" aria-modal="true" role="dialog" hidden>
                     <div class="lightbox-content" role="document">
                         <button type="button" class="lightbox-close" id="badges-lightbox-close">Close</button>
@@ -168,6 +187,32 @@
                 </div>
                 <script>
                     (function () {
+                        const searchInput = document.getElementById('badge-search');
+                        const table = document.getElementById('badge-table');
+                        const emptyState = document.querySelector('[data-badge-search-empty]');
+                        if (searchInput && table) {
+                            const rows = Array.from(table.querySelectorAll('tbody tr'));
+                            const filterRows = () => {
+                                const query = searchInput.value.trim().toLowerCase();
+                                let matches = 0;
+                                rows.forEach((row) => {
+                                    const id = row.dataset.badgeId || '';
+                                    const name = row.dataset.badgeName || '';
+                                    const mac = row.dataset.badgeMac || '';
+                                    const isMatch = !query || id.includes(query) || name.includes(query) || mac.includes(query);
+                                    row.hidden = !isMatch;
+                                    if (isMatch) {
+                                        matches += 1;
+                                    }
+                                });
+                                if (emptyState) {
+                                    emptyState.hidden = matches > 0 || !query;
+                                }
+                            };
+                            searchInput.addEventListener('input', filterRows);
+                            filterRows();
+                        }
+
                         const overlay = document.getElementById('badges-lightbox');
                         if (!overlay) {
                             return;
