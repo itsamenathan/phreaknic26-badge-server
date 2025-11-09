@@ -444,7 +444,7 @@
             }
 
             function updateOverlayColors(color) {
-                currentFontColor = color === 'black' ? '#000' : '#fff';
+                currentFontColor = color === 'black' ? '#1a1a1a' : '#e6e6e6';
                 redrawOverlay();
             }
 
@@ -498,8 +498,8 @@
                     return;
                 }
 
-                const rawInset = 5;
-                const rawHeight = 22;
+                const rawInset = 2;
+                const rawHeight = 28;
                 const inset = rawInset * currentScale;
                 const containerWidth = previewContainer.clientWidth || (previewImage.naturalWidth * currentScale);
                 const containerHeight = previewContainer.clientHeight || (previewImage.naturalHeight * currentScale);
