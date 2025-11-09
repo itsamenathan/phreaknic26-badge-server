@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from sqlalchemy import ForeignKey, String, Text
+from sqlalchemy import Boolean, ForeignKey, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from .constants import DEFAULT_IMAGE_COLOR, DEFAULT_IMAGE_FONT
@@ -54,11 +54,23 @@ class BadgeImage(Base):
     badge: Mapped[Badge] = relationship(back_populates="images")
 
 
+class BadgeUnlockedImage(Base):
+    __tablename__ = "badge_unlocked_images"
+
+    unique_id: Mapped[str] = mapped_column(
+        ForeignKey("badges.unique_id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    image_label: Mapped[str] = mapped_column(String, primary_key=True)
+
+
 class AvailableImage(Base):
     __tablename__ = "available_images"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     image_label: Mapped[str] = mapped_column(String, unique=True)
+    requires_secret_code: Mapped[bool] = mapped_column(nullable=False, default=True)
+    secret_code: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     image_base64: Mapped[str] = mapped_column(Text)
     image_mime_type: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     image_color: Mapped[str] = mapped_column(
@@ -71,3 +83,4 @@ class AvailableImage(Base):
         nullable=False,
         default=DEFAULT_IMAGE_FONT,
     )
+    display_order: Mapped[int] = mapped_column(nullable=False, default=0)

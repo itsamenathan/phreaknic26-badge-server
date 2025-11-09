@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator, Dict, List, Optional
+from typing import Any, AsyncIterator, Dict, List, Optional, Set
 
-from sqlalchemy import select, update
+from sqlalchemy import select, update, func
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import (
 
 from .config import Settings, get_settings
 from .constants import DEFAULT_IMAGE_COLOR, DEFAULT_IMAGE_FONT
-from .models import AvailableImage, Badge, BadgeImage, Base
+from .models import AvailableImage, Badge, BadgeImage, BadgeUnlockedImage, Base
 
 
 class Database:
@@ -100,18 +100,33 @@ class Database:
             if badge is None:
                 return None
 
-            image_stmt = select(AvailableImage).order_by(AvailableImage.image_label)
+            image_stmt = select(AvailableImage).order_by(
+                AvailableImage.display_order.asc(),
+                AvailableImage.image_label.asc(),
+            )
             image_rows = await session.scalars(image_stmt)
-            images: List[Dict[str, Any]] = [
-                {
-                    "label": image.image_label,
-                    "image_base64": image.image_base64,
-                    "image_mime_type": image.image_mime_type,
-                    "image_color": image.image_color or DEFAULT_IMAGE_COLOR,
-                    "image_font": image.image_font or DEFAULT_IMAGE_FONT,
-                }
-                for image in image_rows
-            ]
+            unlocked_stmt = select(BadgeUnlockedImage.image_label).where(
+                BadgeUnlockedImage.unique_id == unique_id
+            )
+            unlocked_rows = await session.scalars(unlocked_stmt)
+            unlocked_labels: Set[str] = set(unlocked_rows.all())
+
+            images: List[Dict[str, Any]] = []
+            for image in image_rows:
+                label = image.image_label
+                is_unlocked = label in unlocked_labels
+                images.append(
+                    {
+                        "label": label,
+                        "image_base64": image.image_base64,
+                        "image_mime_type": image.image_mime_type,
+                        "image_color": image.image_color or DEFAULT_IMAGE_COLOR,
+                        "image_font": image.image_font or DEFAULT_IMAGE_FONT,
+                        "requires_secret_code": bool(image.requires_secret_code),
+                        "display_order": image.display_order or 0,
+                        "is_unlocked": is_unlocked,
+                    }
+                )
 
             return {
                 "unique_id": badge.unique_id,
@@ -193,6 +208,9 @@ class Database:
         image_mime_type: Optional[str],
         image_color: str,
         image_font: str,
+        secret_code: Optional[str],
+        requires_secret_code: bool,
+        display_order: int,
     ) -> bool:
         async with self.session() as session:
             stmt = select(AvailableImage).where(AvailableImage.image_label == image_label)
@@ -201,37 +219,137 @@ class Database:
             if gallery_image is None:
                 gallery_image = AvailableImage(
                     image_label=image_label,
+                    requires_secret_code=requires_secret_code,
+                    secret_code=secret_code,
                     image_base64=image_base64,
                     image_mime_type=image_mime_type,
                     image_color=image_color or DEFAULT_IMAGE_COLOR,
                     image_font=image_font or DEFAULT_IMAGE_FONT,
+                    display_order=display_order,
                 )
                 session.add(gallery_image)
                 created = True
             else:
+                gallery_image.requires_secret_code = requires_secret_code
+                gallery_image.secret_code = secret_code
                 gallery_image.image_base64 = image_base64
                 gallery_image.image_mime_type = image_mime_type
                 gallery_image.image_color = image_color or DEFAULT_IMAGE_COLOR
                 gallery_image.image_font = image_font or DEFAULT_IMAGE_FONT
+                gallery_image.display_order = display_order
 
         return created
 
     async def list_available_images(self) -> List[Dict[str, Any]]:
         async with self.session() as session:
-            stmt = select(AvailableImage).order_by(AvailableImage.image_label.asc())
+            stmt = select(AvailableImage).order_by(
+                AvailableImage.display_order.asc(),
+                AvailableImage.image_label.asc(),
+            )
             result = await session.scalars(stmt)
             images = result.all()
 
         return [
             {
                 "image_label": image.image_label,
+                "requires_secret_code": bool(image.requires_secret_code),
+                "secret_code": image.secret_code,
                 "image_base64": image.image_base64,
                 "image_mime_type": image.image_mime_type,
                 "image_color": image.image_color or DEFAULT_IMAGE_COLOR,
                 "image_font": image.image_font or DEFAULT_IMAGE_FONT,
+                "display_order": image.display_order or 0,
             }
             for image in images
         ]
+
+    async def fetch_available_image(self, image_label: str) -> Optional[Dict[str, Any]]:
+        async with self.session() as session:
+            stmt = select(AvailableImage).where(AvailableImage.image_label == image_label)
+            image = await session.scalar(stmt)
+
+        if image is None:
+            return None
+
+        return {
+            "image_label": image.image_label,
+            "requires_secret_code": bool(image.requires_secret_code),
+            "secret_code": image.secret_code,
+            "image_base64": image.image_base64,
+            "image_mime_type": image.image_mime_type,
+            "image_color": image.image_color or DEFAULT_IMAGE_COLOR,
+            "image_font": image.image_font or DEFAULT_IMAGE_FONT,
+        }
+
+    async def fetch_available_image_by_code(self, secret_code: str) -> Optional[Dict[str, Any]]:
+        cleaned_code = (secret_code or "").strip().casefold()
+        if not cleaned_code:
+            return None
+
+        async with self.session() as session:
+            stmt = select(AvailableImage).where(
+                func.lower(AvailableImage.secret_code) == cleaned_code
+            )
+            image = await session.scalar(stmt)
+
+        if image is None:
+            return None
+
+        return {
+            "image_label": image.image_label,
+            "requires_secret_code": bool(image.requires_secret_code),
+            "secret_code": image.secret_code,
+            "image_base64": image.image_base64,
+            "image_mime_type": image.image_mime_type,
+            "image_color": image.image_color or DEFAULT_IMAGE_COLOR,
+            "image_font": image.image_font or DEFAULT_IMAGE_FONT,
+            "display_order": image.display_order or 0,
+        }
+
+    async def update_available_image_metadata(
+        self,
+        image_label: str,
+        *,
+        image_color: str,
+        image_font: str,
+        secret_code: Optional[str],
+        requires_secret_code: bool,
+        display_order: int,
+    ) -> bool:
+        async with self.session() as session:
+            image = await session.scalar(
+                select(AvailableImage).where(AvailableImage.image_label == image_label)
+            )
+            if image is None:
+                return False
+
+            image.image_color = image_color or DEFAULT_IMAGE_COLOR
+            image.image_font = image_font or DEFAULT_IMAGE_FONT
+            image.secret_code = secret_code
+            image.requires_secret_code = requires_secret_code
+            image.display_order = display_order
+
+        return True
+
+    async def mark_image_unlocked(self, unique_id: str, image_label: str) -> bool:
+        async with self.session() as session:
+            badge = await session.scalar(select(Badge).where(Badge.unique_id == unique_id))
+            if badge is None:
+                return False
+
+            existing = await session.scalar(
+                select(BadgeUnlockedImage).where(
+                    BadgeUnlockedImage.unique_id == unique_id,
+                    BadgeUnlockedImage.image_label == image_label,
+                )
+            )
+            if existing is not None:
+                return True
+
+            unlocked = BadgeUnlockedImage(unique_id=unique_id, image_label=image_label)
+            session.add(unlocked)
+
+        return True
 
     async def delete_available_image(self, image_label: str) -> bool:
         async with self.session() as session:
@@ -270,6 +388,11 @@ class Database:
 
             await session.execute(
                 update(BadgeImage).where(BadgeImage.unique_id == current_id).values(unique_id=new_id)
+            )
+            await session.execute(
+                update(BadgeUnlockedImage)
+                .where(BadgeUnlockedImage.unique_id == current_id)
+                .values(unique_id=new_id)
             )
             badge.unique_id = new_id
         return "updated"

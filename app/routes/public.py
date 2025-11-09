@@ -22,6 +22,7 @@ from ..constants import (
     MAX_BADGE_NAME_LENGTH,
     MAX_BADGE_ID_LENGTH,
     MAX_IMAGE_LABEL_LENGTH,
+    MAX_IMAGE_SECRET_CODE_LENGTH,
     MIN_BADGE_FONT_SIZE,
 )
 from ..services.badge_renderer import render_badge_image
@@ -144,6 +145,7 @@ def _render_selection_page(
             "MIN_BADGE_FONT_SIZE": MIN_BADGE_FONT_SIZE,
             "MAX_BADGE_FONT_SIZE": MAX_BADGE_FONT_SIZE,
             "MAX_BADGE_NAME_LENGTH": MAX_BADGE_NAME_LENGTH,
+            "MAX_IMAGE_SECRET_CODE_LENGTH": MAX_IMAGE_SECRET_CODE_LENGTH,
         },
         status_code=status_code,
     )
@@ -360,6 +362,47 @@ async def post_badge(
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
+    if selected_image.get("requires_secret_code") and not selected_image.get("is_unlocked"):
+        return _render_selection_page(
+            request,
+            profile=profile,
+            error="Enter the secret code to unlock that image before using it.",
+            sent=False,
+            form=form_state,
+            status_code=status.HTTP_403_FORBIDDEN,
+        )
+
+    if not selected_image.get("image_base64"):
+        try:
+            stored_image = await db.fetch_available_image(image_label)
+        except SQLAlchemyError:
+            logger.exception("Failed to load image '%s' while saving badge %s", image_label, unique_id)
+            return _render_selection_page(
+                request,
+                profile=profile,
+                error="We could not unlock that image right now. Please try again.",
+                sent=False,
+                form=form_state,
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        if stored_image is None:
+            return _render_selection_page(
+                request,
+                profile=profile,
+                error="The selected image is no longer available.",
+                sent=False,
+                form=form_state,
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+        selected_image = {
+            **selected_image,
+            "image_base64": stored_image["image_base64"],
+            "image_mime_type": stored_image.get("image_mime_type"),
+            "image_color": stored_image.get("image_color") or DEFAULT_IMAGE_COLOR,
+            "image_font": stored_image.get("image_font") or DEFAULT_IMAGE_FONT,
+            "is_unlocked": selected_image.get("is_unlocked"),
+        }
+
     stored_name = profile.get("name") or ""
     submitted_name = display_name or _clean_display_name(stored_name)
     if not submitted_name:
@@ -503,6 +546,105 @@ router.add_api_route(
     include_in_schema=False,
     name="legacy_post_badge",
 )
+
+
+@router.post("/badges/{unique_id}/unlock", response_class=JSONResponse)
+async def unlock_badge_image(
+    unique_id: str,
+    image_label: Optional[str] = Form(None, max_length=MAX_IMAGE_LABEL_LENGTH),
+    secret_code: str = Form(..., max_length=MAX_IMAGE_SECRET_CODE_LENGTH),
+) -> Response:
+    unique_id = unique_id.strip()
+    if len(unique_id) > MAX_BADGE_ID_LENGTH:
+        return JSONResponse(
+            {"detail": "Badge not found."},
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+
+    secret_code_value = (secret_code or "").strip()
+    if not secret_code_value:
+        return JSONResponse(
+            {"detail": "Secret code is required."},
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        profile = await db.fetch_profile(unique_id)
+    except SQLAlchemyError:
+        logger.exception("Failed to load badge %s during unlock attempt", unique_id)
+        return JSONResponse(
+            {"detail": "We could not verify that code right now. Please try again."},
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+    if profile is None:
+        return JSONResponse(
+            {"detail": "Badge not found."},
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+
+    cleaned_label = (image_label or "").strip()
+    try:
+        if cleaned_label:
+            image_details = await db.fetch_available_image(cleaned_label)
+        else:
+            image_details = await db.fetch_available_image_by_code(secret_code_value)
+            if image_details is not None:
+                cleaned_label = image_details["image_label"]
+    except SQLAlchemyError:
+        logger.exception("Failed to fetch image %s during unlock", image_label or "<by_code>")
+        return JSONResponse(
+            {"detail": "We could not verify that code right now. Please try again."},
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+    if image_details is None:
+        detail = "Image not found." if cleaned_label else "Invalid secret code."
+        status_code_value = (
+            status.HTTP_404_NOT_FOUND if cleaned_label else status.HTTP_400_BAD_REQUEST
+        )
+        return JSONResponse({"detail": detail}, status_code=status_code_value)
+
+    resolved_label = image_details["image_label"]
+    if not any(image["label"] == resolved_label for image in profile["images"]):
+        return JSONResponse(
+            {"detail": "That image is not available for this badge."},
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+
+    expected_code = (image_details.get("secret_code") or "").strip()
+    requires_secret = bool(image_details.get("requires_secret_code"))
+    if requires_secret:
+        if not expected_code or expected_code.casefold() != secret_code_value.casefold():
+            return JSONResponse(
+                {"detail": "Invalid secret code."},
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+    try:
+        unlocked = await db.mark_image_unlocked(unique_id, resolved_label)
+    except SQLAlchemyError:
+        logger.exception("Failed to persist unlocked image %s for %s", resolved_label, unique_id)
+        return JSONResponse(
+            {"detail": "We unlocked the image, but could not save your progress. Please try again."},
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+    if not unlocked:
+        return JSONResponse(
+            {"detail": "Badge not found."},
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+
+    return JSONResponse(
+        {
+            "image_label": image_details["image_label"],
+            "image_base64": image_details["image_base64"],
+            "image_mime_type": image_details.get("image_mime_type") or "image/png",
+            "image_color": image_details.get("image_color") or DEFAULT_IMAGE_COLOR,
+            "image_font": image_details.get("image_font") or DEFAULT_IMAGE_FONT,
+        }
+    )
 
 
 @router.get("/BADGES", response_class=HTMLResponse, include_in_schema=False)
