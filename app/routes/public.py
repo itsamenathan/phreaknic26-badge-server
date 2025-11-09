@@ -674,6 +674,16 @@ router.add_api_route(
 )
 
 
+@router.get("/pizza-net", response_class=HTMLResponse)
+async def pizza_easter_egg(request: Request) -> Response:
+    return templates.TemplateResponse(
+        "pizza_easter_egg.html",
+        {
+            "request": request,
+        },
+    )
+
+
 @router.get("/api/badges/mac/{mac_address}", response_class=JSONResponse)
 async def get_badge_by_mac_api(mac_address: str) -> Response:
     normalised = normalise_mac_address(mac_address)
