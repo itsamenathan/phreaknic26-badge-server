@@ -47,20 +47,20 @@
                     </div>
                     <p class="badge-instruction">Drag your name around on the preview, then adjust the slider to resize it.</p>
                 </div>
-                <label class="field">
-                    <span>Name</span>
-                    <input
-                        type="text"
-                        name="override_name"
-                        id="badge-name-input"
-                        value="{{ form.display_name or profile.name }}"
-                        maxlength="{{ MAX_BADGE_NAME_LENGTH }}"
-                        pattern="[A-Za-z0-9 :.,!?'&quot;_-]+"
-                        title="Use letters, numbers, spaces, and : . , ! ? \" ' - _"
-                    >
-                </label>
-                <div class="customization-controls">
-                    <label class="field">
+                <div class="customization-controls customization-controls--two-column">
+                    <label class="field control-card">
+                        <span>Name</span>
+                        <input
+                            type="text"
+                            name="override_name"
+                            id="badge-name-input"
+                            value="{{ form.display_name or profile.name }}"
+                            maxlength="{{ MAX_BADGE_NAME_LENGTH }}"
+                            pattern="[A-Za-z0-9 :.,!?'&quot;_-]+"
+                            title="Use letters, numbers, spaces, and : . , ! ? \" ' - _"
+                        >
+                    </label>
+                    <label class="field control-card">
                         <span>Font Size</span>
                         <div class="font-size-control">
                             <input
@@ -111,7 +111,6 @@
                 </div>
                 {% if locked_images %}
                     <section class="unlock-panel" id="unlock-panel">
-                        <h2>Unlock an image</h2>
                         <p>Enter the secret code to reveal a locked images.</p>
                         <div class="unlock-form" id="unlock-form">
                             <label class="field">
@@ -171,7 +170,7 @@
                 <li>Your badge should update with your image.</li>
                 <li>If you encounter issues, ask a staff member for assistance.</li>
             </ol>
-            <p class="popover-hint">Hint: Keep an eye out for secret codes to unlock even more images.</p>
+            <p class="popover-hint">Hint: Keep an eye out for secret codes around the con to unlock even more images.</p
             <button type="button" class="popover-close" id="flash-instructions-close">Close</button>
         </div>
     </div>
