@@ -877,6 +877,29 @@ p {
     gap: 1.25rem;
 }
 
+.customization-controls--two-column {
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.control-card {
+    background: rgba(6, 22, 10, 0.85);
+    border: 1px solid rgba(48, 255, 152, 0.25);
+    padding: 1rem;
+    border-radius: 12px;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+}
+
+.control-card span {
+    font-size: 0.9rem;
+    color: #bfffe3;
+}
+
+.control-card__hint {
+    margin: 0.6rem 0 0;
+    font-size: 0.8rem;
+    color: #8cf6be;
+}
+
 .unlock-panel {
     border: 1px dashed rgba(48, 255, 152, 0.35);
     border-radius: 16px;
