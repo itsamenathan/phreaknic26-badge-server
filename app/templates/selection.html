@@ -11,7 +11,11 @@
         {% if profile %}
             <header>
                 <h1>{{ form.display_name or profile.name }}</h1>
-                <p>Select and customize your badge frame below.</p>
+                <p>
+                    <button type="button" class="popover-link popover-link--inline" data-flash-link>
+                        How do I update my badge?
+                    </button>
+                </p>
             </header>
             {% if sent %}
                 <div class="alert success" role="status">
@@ -28,18 +32,6 @@
                 <input type="hidden" name="text_x" id="text-x" value="{{ form.text_x }}">
                 <input type="hidden" name="text_y" id="text-y" value="{{ form.text_y }}">
                 <input type="hidden" name="download_after_save" id="download-after-save" value="0">
-                <label class="field">
-                    <span>Name</span>
-                    <input
-                        type="text"
-                        name="override_name"
-                        id="badge-name-input"
-                        value="{{ form.display_name or profile.name }}"
-                        maxlength="{{ MAX_BADGE_NAME_LENGTH }}"
-                        pattern="[A-Za-z0-9 :.,!?'&quot;_-]+"
-                        title="Use letters, numbers, spaces, and : . , ! ? \" ' - _"
-                    >
-                </label>
                 {% set locked_images = profile.images
                     | selectattr('requires_secret_code')
                     | rejectattr('is_unlocked')
@@ -53,8 +45,20 @@
                         <div class="badge-preview__guide" id="badge-preview-guide" aria-hidden="true"></div>
                         <canvas class="name-overlay" id="name-overlay-canvas" aria-hidden="true"></canvas>
                     </div>
-                    <p class="badge-instruction">Drag your name on the preview, then adjust the slider to resize it.</p>
+                    <p class="badge-instruction">Drag your name around on the preview, then adjust the slider to resize it.</p>
                 </div>
+                <label class="field">
+                    <span>Name</span>
+                    <input
+                        type="text"
+                        name="override_name"
+                        id="badge-name-input"
+                        value="{{ form.display_name or profile.name }}"
+                        maxlength="{{ MAX_BADGE_NAME_LENGTH }}"
+                        pattern="[A-Za-z0-9 :.,!?'&quot;_-]+"
+                        title="Use letters, numbers, spaces, and : . , ! ? \" ' - _"
+                    >
+                </label>
                 <div class="customization-controls">
                     <label class="field">
                         <span>Font Size</span>
@@ -108,7 +112,7 @@
                 {% if locked_images %}
                     <section class="unlock-panel" id="unlock-panel">
                         <h2>Unlock an image</h2>
-                        <p>Enter the secret code to reveal one of the locked images.</p>
+                        <p>Enter the secret code to reveal a locked images.</p>
                         <div class="unlock-form" id="unlock-form">
                             <label class="field">
                                 <input
@@ -157,6 +161,20 @@
     <a class="pi-easter-egg" href="{{ url_for('pizza_easter_egg') }}" aria-label="π">
         π
     </a>
+    <div class="popover-panel" id="flash-instructions-panel" role="dialog" aria-modal="true" aria-labelledby="flash-instructions-title">
+        <div class="popover-content">
+            <h3 id="flash-instructions-title">Flash Your Badge</h3>
+            <ol>
+                <li>Select an image and customize your name.</li>
+                <li>Click "Save" to store settings.</li>
+                <li>Plug your badge into the programmer at registration.</li>
+                <li>Your badge should update with your image.</li>
+                <li>If you encounter issues, ask a staff member for assistance.</li>
+            </ol>
+            <p class="popover-hint">Hint: Keep an eye out for secret codes to unlock even more images.</p>
+            <button type="button" class="popover-close" id="flash-instructions-close">Close</button>
+        </div>
+    </div>
     <script>
         (function () {
             const defaultName = {{ (profile.name if profile else '') | tojson }};
@@ -182,6 +200,7 @@
             const sendButton = document.getElementById('send-button');
             const downloadLink = document.getElementById('download-firmware-link');
             const downloadAfterSaveInput = document.getElementById('download-after-save');
+            const flashInstructionLinks = document.querySelectorAll('[data-flash-link]');
             const previewContainer = document.getElementById('badge-preview');
             const previewImage = document.getElementById('badge-preview-image');
             const previewPlaceholder = document.getElementById('badge-preview-placeholder');
@@ -195,6 +214,8 @@
             const unlockMessage = document.getElementById('unlock-message');
             const unlockEndpoint = `${window.location.pathname.replace(/\/$/, '')}/unlock`;
             const selectionForm = document.getElementById('selection-form');
+            const instructionsPanel = document.getElementById('flash-instructions-panel');
+            const instructionCloseButton = document.getElementById('flash-instructions-close');
 
             const PREVIEW_VISIBLE_CLASS = 'badge-preview__image--visible';
             const PREVIEW_MAX_WIDTH = 960;
@@ -764,6 +785,29 @@
                     skipSaveForDownload = true;
                     downloadLink.click();
                 }, 400);
+            }
+
+            function toggleInstructions(show) {
+                if (!instructionsPanel) {
+                    return;
+                }
+                instructionsPanel.classList.toggle('is-visible', show);
+            }
+
+            if (flashInstructionLinks.length && instructionsPanel) {
+                flashInstructionLinks.forEach(link =>
+                    link.addEventListener('click', () => toggleInstructions(true))
+                );
+            }
+            if (instructionCloseButton) {
+                instructionCloseButton.addEventListener('click', () => toggleInstructions(false));
+            }
+            if (instructionsPanel) {
+                instructionsPanel.addEventListener('click', event => {
+                    if (event.target === instructionsPanel) {
+                        toggleInstructions(false);
+                    }
+                });
             }
         })();
     </script>
