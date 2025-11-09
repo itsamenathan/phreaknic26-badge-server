@@ -232,6 +232,30 @@ p {
     color: #b6ffda;
 }
 
+.admin-card__form {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.75rem;
+}
+
+.admin-card__form .field {
+    gap: 0.4rem;
+}
+
+.admin-card__form-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    grid-column: 1 / -1;
+}
+
+.admin-card__delete-form {
+    width: 100%;
+    margin-top: 0.5rem;
+}
+
 .danger {
     padding: 0.6rem 1.25rem;
     border: 1px solid rgba(255, 90, 90, 0.45);
@@ -770,6 +794,24 @@ p {
     color: #c9ffe1;
 }
 
+.field__hint {
+    display: block;
+    margin-top: 0.35rem;
+    font-size: 0.8rem;
+    color: #78f3b3;
+}
+
+.field--checkbox {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.field--checkbox input[type="checkbox"] {
+    width: 1.2rem;
+    height: 1.2rem;
+}
+
 .font-size-control {
     display: flex;
     align-items: center;
@@ -833,6 +875,52 @@ p {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: 1.25rem;
+}
+
+.unlock-panel {
+    border: 1px dashed rgba(48, 255, 152, 0.35);
+    border-radius: 16px;
+    padding: 1.25rem;
+    background: rgba(6, 32, 12, 0.88);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.unlock-panel h2 {
+    margin: 0;
+    font-size: 1rem;
+    letter-spacing: 0.08em;
+    color: #30ff98;
+    text-transform: uppercase;
+}
+
+.unlock-panel p {
+    margin: 0;
+    color: #8cf6be;
+}
+
+.unlock-form {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 1rem;
+    align-items: end;
+}
+
+.unlock-form__button {
+    align-self: flex-end;
+}
+
+.unlock-message {
+    grid-column: 1 / -1;
+    min-height: 1.2rem;
+    margin: 0;
+    font-weight: 600;
+    color: #8cf6be;
+}
+
+.unlock-message--error {
+    color: #ff9393;
 }
 
 .visually-hidden {
@@ -1015,6 +1103,48 @@ p {
     image-rendering: crisp-edges;
     image-rendering: pixelated;
     -ms-interpolation-mode: nearest-neighbor;
+}
+
+.thumbnail__media {
+    position: relative;
+    width: 100%;
+    min-height: 150px;
+}
+
+.thumbnail__lock-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    text-align: center;
+    padding: 0.75rem;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.55);
+    color: #ffdede;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    pointer-events: none;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.thumbnail__lock-overlay small {
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    color: #ffe5e5;
+}
+
+.thumbnail--locked {
+    border-style: dashed;
+    opacity: 0.9;
+}
+
+.thumbnail--locked:hover {
+    transform: none;
+    box-shadow: 0 14px 28px rgba(0, 0, 0, 0.35);
+    border-color: rgba(48, 255, 152, 0.25);
 }
 
 .field input[type="file"] {

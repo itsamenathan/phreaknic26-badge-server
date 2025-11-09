@@ -19,6 +19,7 @@ from ..constants import (
     MAX_BADGE_NAME_LENGTH,
     MAX_BADGE_MAC_ADDRESS_LENGTH,
     MAX_IMAGE_LABEL_LENGTH,
+    MAX_IMAGE_SECRET_CODE_LENGTH,
     IMAGE_COLOR_CHOICES,
     FONT_FILE_EXTENSIONS,
 )
@@ -78,13 +79,28 @@ async def _render_admin_upload(
     error: Optional[str],
     status_code: int = status.HTTP_200_OK,
 ) -> Response:
+    images, load_error = await _load_available_images()
+    next_display_order = 0
+    if images:
+        next_display_order = max((image.get("display_order") or 0) for image in images) + 1
     full_form_data = {
         "image_label": "",
         "image_color": DEFAULT_IMAGE_COLOR,
         "image_font": DEFAULT_IMAGE_FONT,
+        "requires_secret_code": True,
+        "secret_code": "",
+        "display_order": next_display_order,
         **form_data,
     }
-    images, load_error = await _load_available_images()
+    try:
+        current_display_order = full_form_data.get("display_order")
+        if current_display_order in (None, ""):
+            full_form_data["display_order"] = next_display_order
+        else:
+            full_form_data["display_order"] = int(current_display_order)
+    except (TypeError, ValueError):
+        full_form_data["display_order"] = next_display_order
+    full_form_data["requires_secret_code"] = bool(full_form_data["requires_secret_code"])
     font_choices, font_error = _load_font_choices()
     if full_form_data["image_font"] not in font_choices:
         full_form_data["image_font"] = font_choices[0]
@@ -99,8 +115,10 @@ async def _render_admin_upload(
             "error": combined_error,
             "images": images,
             "MAX_IMAGE_LABEL_LENGTH": MAX_IMAGE_LABEL_LENGTH,
+            "MAX_IMAGE_SECRET_CODE_LENGTH": MAX_IMAGE_SECRET_CODE_LENGTH,
             "IMAGE_COLOR_CHOICES": IMAGE_COLOR_CHOICES,
             "IMAGE_FONT_CHOICES": font_choices,
+            "DEFAULT_IMAGE_FONT": DEFAULT_IMAGE_FONT,
         },
         status_code=status_code,
     )
@@ -161,6 +179,9 @@ async def admin_images_form(
         "image_label": (image_label or "")[:MAX_IMAGE_LABEL_LENGTH],
         "image_color": DEFAULT_IMAGE_COLOR,
         "image_font": DEFAULT_IMAGE_FONT,
+        "requires_secret_code": True,
+        "secret_code": "",
+        "display_order": None,
     }
     return await _render_admin_upload(
         request,
@@ -177,14 +198,39 @@ async def admin_images_upload(
     image_file: UploadFile = File(...),
     image_color: str = Form(...),
     image_font: str = Form(...),
+    secret_code: Optional[str] = Form(None, max_length=MAX_IMAGE_SECRET_CODE_LENGTH),
+    requires_secret_code: Optional[bool] = Form(False),
+    display_order: Optional[str] = Form("0"),
 ) -> Response:
     image_label = image_label.strip()
     image_color = image_color.strip().lower()
     image_font = image_font.strip()
+    secret_code = (secret_code or "").strip()
+    requires_secret_code_value = bool(requires_secret_code)
+    try:
+        display_order_value = int(display_order) if display_order not in (None, "") else 0
+    except (TypeError, ValueError):
+        return await _render_admin_upload(
+            request,
+            {
+                "image_label": image_label,
+                "image_color": image_color,
+                "image_font": image_font,
+                "secret_code": secret_code,
+                "requires_secret_code": requires_secret_code_value,
+                "display_order": display_order or 0,
+            },
+            success=None,
+            error="Display order must be a whole number.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
     form_data = {
         "image_label": image_label,
         "image_color": image_color,
         "image_font": image_font,
+        "secret_code": secret_code,
+        "requires_secret_code": requires_secret_code_value,
+        "display_order": display_order_value,
     }
 
     font_choices, font_error = _load_font_choices()
@@ -230,6 +276,15 @@ async def admin_images_upload(
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
+    if requires_secret_code_value and not secret_code:
+        return await _render_admin_upload(
+            request,
+            form_data,
+            success=None,
+            error="Secret code is required when locking the image.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
     try:
         content = await image_file.read()
     except Exception:
@@ -261,6 +316,9 @@ async def admin_images_upload(
             image_mime_type=image_mime_type,
             image_color=image_color,
             image_font=image_font,
+            secret_code=secret_code,
+            requires_secret_code=requires_secret_code_value,
+            display_order=display_order_value,
         )
     except SQLAlchemyError:
         logger.exception("Failed to store gallery image %s", image_label)
@@ -280,6 +338,157 @@ async def admin_images_upload(
             "image_label": image_label,
         }
     )
+    redirect_url = f"{request.url_for('admin_images_form')}?{query_params}"
+    return RedirectResponse(redirect_url, status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/images/update", response_class=HTMLResponse)
+async def admin_images_update(
+    request: Request,
+    image_label: str = Form(..., max_length=MAX_IMAGE_LABEL_LENGTH),
+    image_color: str = Form(...),
+    image_font: str = Form(...),
+    secret_code: Optional[str] = Form(None, max_length=MAX_IMAGE_SECRET_CODE_LENGTH),
+    requires_secret_code: Optional[bool] = Form(False),
+    display_order: Optional[str] = Form("0"),
+) -> Response:
+    image_label = image_label.strip()
+    image_color = image_color.strip().lower()
+    image_font = image_font.strip()
+    secret_code = (secret_code or "").strip()
+    requires_secret_code_value = bool(requires_secret_code)
+    try:
+        display_order_value = int(display_order) if display_order not in (None, "") else 0
+    except (TypeError, ValueError):
+        return await _render_admin_upload(
+            request,
+            {
+                "image_label": "",
+                "image_color": DEFAULT_IMAGE_COLOR,
+                "image_font": DEFAULT_IMAGE_FONT,
+                "requires_secret_code": True,
+                "secret_code": "",
+                "display_order": 0,
+            },
+            success=None,
+            error="Display order must be a whole number.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    font_choices, font_error = _load_font_choices()
+
+    if not image_label:
+        return await _render_admin_upload(
+            request,
+            {
+                "image_label": "",
+                "image_color": DEFAULT_IMAGE_COLOR,
+                "image_font": DEFAULT_IMAGE_FONT,
+                "requires_secret_code": True,
+                "secret_code": "",
+                "display_order": 0,
+            },
+            success=None,
+            error="Image label is required.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if image_color not in IMAGE_COLOR_CHOICES:
+        return await _render_admin_upload(
+            request,
+            {
+                "image_label": "",
+                "image_color": DEFAULT_IMAGE_COLOR,
+                "image_font": DEFAULT_IMAGE_FONT,
+                "requires_secret_code": True,
+                "secret_code": "",
+                "display_order": 0,
+            },
+            success=None,
+            error="Please choose a valid color option.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if image_font not in font_choices:
+        error_message = (
+            "Please choose a valid font option."
+            if not font_error
+            else "Font options are unavailable right now. Please refresh the page."
+        )
+        return await _render_admin_upload(
+            request,
+            {
+                "image_label": "",
+                "image_color": DEFAULT_IMAGE_COLOR,
+                "image_font": DEFAULT_IMAGE_FONT,
+                "requires_secret_code": True,
+                "secret_code": "",
+                "display_order": 0,
+            },
+            success=None,
+            error=error_message,
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if requires_secret_code_value and not secret_code:
+        return await _render_admin_upload(
+            request,
+            {
+                "image_label": "",
+                "image_color": DEFAULT_IMAGE_COLOR,
+                "image_font": DEFAULT_IMAGE_FONT,
+                "requires_secret_code": True,
+                "secret_code": "",
+                "display_order": 0,
+            },
+            success=None,
+            error="Secret code is required when locking the image.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        updated = await db.update_available_image_metadata(
+            image_label=image_label,
+            image_color=image_color,
+            image_font=image_font,
+            secret_code=secret_code,
+            requires_secret_code=requires_secret_code_value,
+            display_order=display_order_value,
+        )
+    except SQLAlchemyError:
+        logger.exception("Failed to update gallery image %s", image_label)
+        return await _render_admin_upload(
+            request,
+            {
+                "image_label": "",
+                "image_color": DEFAULT_IMAGE_COLOR,
+                "image_font": DEFAULT_IMAGE_FONT,
+                "requires_secret_code": True,
+                "secret_code": "",
+                "display_order": 0,
+            },
+            success=None,
+            error="Something went wrong while updating the image. Please try again.",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+    if not updated:
+        return await _render_admin_upload(
+            request,
+            {
+                "image_label": "",
+                "image_color": DEFAULT_IMAGE_COLOR,
+                "image_font": DEFAULT_IMAGE_FONT,
+                "requires_secret_code": True,
+                "secret_code": "",
+                "display_order": 0,
+            },
+            success=None,
+            error="The requested image could not be found.",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+
+    query_params = urlencode({"success": f"{image_label} updated successfully."})
     redirect_url = f"{request.url_for('admin_images_form')}?{query_params}"
     return RedirectResponse(redirect_url, status_code=status.HTTP_303_SEE_OTHER)
 

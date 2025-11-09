@@ -50,6 +50,37 @@
                 </select>
             </label>
             <label class="field">
+                <span>Display Order</span>
+                <input
+                    type="number"
+                    name="display_order"
+                    value="{{ form.display_order }}"
+                    step="1"
+                >
+            </label>
+            <label class="field field--checkbox">
+                <input
+                    type="checkbox"
+                    name="requires_secret_code"
+                    value="1"
+                    {% if form.requires_secret_code %}checked{% endif %}
+                    data-secret-toggle
+                    data-secret-target="upload-secret-code"
+                >
+                <span>Lock this image behind a secret code</span>
+            </label>
+            <label class="field">
+                <span>Secret Code</span>
+                <input
+                    type="text"
+                    name="secret_code"
+                    id="upload-secret-code"
+                    {% if form.requires_secret_code %}required{% endif %}
+                    value="{{ form.secret_code }}"
+                    maxlength="{{ MAX_IMAGE_SECRET_CODE_LENGTH }}"
+                >
+            </label>
+            <label class="field">
                 <span>Image File</span>
                 <input type="file" name="image_file" accept="image/*" required>
             </label>
@@ -64,15 +95,71 @@
             {% if images %}
                 <div class="admin-gallery">
                     {% for image in images %}
+                        {% set current_color = image.image_color if image.image_color in IMAGE_COLOR_CHOICES else IMAGE_COLOR_CHOICES[0] %}
+                        {% set current_font = image.image_font if image.image_font in IMAGE_FONT_CHOICES else IMAGE_FONT_CHOICES[0] %}
                         <article class="admin-card">
                             <div class="admin-card__preview">
                                 <img src="data:{{ image.image_mime_type or 'image/png' }};base64,{{ image.image_base64 }}" alt="{{ image.image_label }}">
                             </div>
                             <div class="admin-card__meta">
                                 <span class="admin-card__label">{{ image.image_label }}</span>
-                                <span class="admin-card__detail">Color: {{ (image.image_color or 'black') | capitalize }}</span>
-                                <span class="admin-card__detail">Font: {{ image.image_font or 'Awkward.ttf' }}</span>
-                                <form method="post" action="{{ url_for('admin_images_delete') }}">
+                                <form method="post" action="{{ url_for('admin_images_update') }}" class="admin-card__form">
+                                    <input type="hidden" name="image_label" value="{{ image.image_label }}">
+                                    <label class="field">
+                                        <span>Color</span>
+                                        <select name="image_color" required>
+                                            {% for option in IMAGE_COLOR_CHOICES %}
+                                                <option value="{{ option }}" {% if current_color == option %}selected{% endif %}>
+                                                    {{ option | capitalize }}
+                                                </option>
+                                            {% endfor %}
+                                        </select>
+                                    </label>
+                                    <label class="field">
+                                        <span>Font</span>
+                                        <select name="image_font" required>
+                                            {% for font in IMAGE_FONT_CHOICES %}
+                                                <option value="{{ font }}" {% if current_font == font %}selected{% endif %}>
+                                                    {{ font }}
+                                                </option>
+                                            {% endfor %}
+                                        </select>
+                                    </label>
+                                    <label class="field">
+                                        <span>Display Order</span>
+                                        <input type="number" name="display_order" value="{{ image.display_order or 0 }}" step="1">
+                                    </label>
+                                    <label class="field">
+                                        <span>Secret Code</span>
+                                        <input
+                                            type="text"
+                                            name="secret_code"
+                                            id="secret-code-{{ loop.index0 }}"
+                                            value="{{ image.secret_code or '' }}"
+                                            {% if image.requires_secret_code %}required{% endif %}
+                                            maxlength="{{ MAX_IMAGE_SECRET_CODE_LENGTH }}"
+                                            data-secret-input
+                                        >
+                                    </label>
+                                    <label class="field field--checkbox">
+                                        <input
+                                            type="checkbox"
+                                            name="requires_secret_code"
+                                            value="1"
+                                            {% if image.requires_secret_code %}checked{% endif %}
+                                            data-secret-toggle
+                                            data-secret-target="secret-code-{{ loop.index0 }}"
+                                        >
+                                        <span>Require secret code</span>
+                                    </label>
+                                    <div class="admin-card__form-actions">
+                                        <button type="submit" class="secondary">Save Changes</button>
+                                        <span class="admin-card__detail">
+                                            Status: {{ "Locked" if image.requires_secret_code else "Unlocked" }}
+                                        </span>
+                                    </div>
+                                </form>
+                                <form method="post" action="{{ url_for('admin_images_delete') }}" class="admin-card__delete-form">
                                     <input type="hidden" name="image_label" value="{{ image.image_label }}">
                                     <button type="submit" class="danger">Delete</button>
                                 </form>
@@ -85,5 +172,29 @@
             {% endif %}
         </section>
     </main>
+    <script>
+        (function () {
+            function syncSecretRequirement(toggle) {
+                const targetId = toggle.getAttribute('data-secret-target');
+                if (!targetId) {
+                    return;
+                }
+                const input = document.getElementById(targetId);
+                if (!input) {
+                    return;
+                }
+                if (toggle.checked) {
+                    input.setAttribute('required', 'required');
+                } else {
+                    input.removeAttribute('required');
+                }
+            }
+
+            document.querySelectorAll('[data-secret-toggle]').forEach(toggle => {
+                syncSecretRequirement(toggle);
+                toggle.addEventListener('change', () => syncSecretRequirement(toggle));
+            });
+        })();
+    </script>
 </body>
 </html>

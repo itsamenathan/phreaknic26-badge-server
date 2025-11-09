@@ -39,6 +39,10 @@
                         title="Use letters, numbers, spaces, and : . , ! ? \" ' - _"
                     >
                 </label>
+                {% set locked_images = profile.images
+                    | selectattr('requires_secret_code')
+                    | rejectattr('is_unlocked')
+                    | list %}
                 <div class="badge-editor{% if not form.image_label %} badge-editor--inactive{% endif %}" id="badge-editor">
                     <div class="badge-preview badge-preview--empty" id="badge-preview">
                         <img id="badge-preview-image" alt="" aria-hidden="true">
@@ -71,21 +75,55 @@
                 </div>
                 <div class="gallery gallery--selection">
                     {% for image in profile.images %}
+                        {% set is_locked = image.requires_secret_code and not image.is_unlocked %}
                         <button
                             type="button"
-                            class="thumbnail{% if form.image_label == image.label %} active{% endif %}"
+                            class="thumbnail{% if form.image_label == image.label %} active{% endif %}{% if is_locked %} thumbnail--locked{% endif %}"
                             data-label="{{ image.label }}"
-                            data-src="data:{{ image.image_mime_type or 'image/png' }};base64,{{ image.image_base64 }}"
                             data-color="{{ image.image_color or 'black' }}"
                             data-font="{{ image.image_font or 'Awkward.ttf' }}"
+                            data-locked="{{ 'true' if is_locked else 'false' }}"
+                            data-src="data:{{ image.image_mime_type or 'image/png' }};base64,{{ image.image_base64 }}"
                         >
-                            <img src="data:{{ image.image_mime_type or 'image/png' }};base64,{{ image.image_base64 }}" alt="{{ image.label }}">
+                            <div class="thumbnail__media">
+                                <img
+                                    data-thumbnail-image
+                                    alt="{{ image.label }}"
+                                    src="data:{{ image.image_mime_type or 'image/png' }};base64,{{ image.image_base64 }}"
+                                >
+                                {% if is_locked %}
+                                    <div class="thumbnail__lock-overlay" data-lock-overlay>
+                                        <span aria-hidden="true">Locked</span>
+                                        <small>Enter the code to reveal</small>
+                                    </div>
+                                {% endif %}
+                            </div>
                             <span>{{ image.label }}</span>
                         </button>
                     {% else %}
                         <p class="empty-state">No images available for this badge.</p>
                     {% endfor %}
                 </div>
+                {% if locked_images %}
+                    <section class="unlock-panel" id="unlock-panel">
+                        <h2>Unlock an image</h2>
+                        <p>Enter the secret code to reveal one of the locked images.</p>
+                        <div class="unlock-form" id="unlock-form">
+                            <label class="field">
+                                <input
+                                    type="text"
+                                    id="unlock-secret-code"
+                                    maxlength="{{ MAX_IMAGE_SECRET_CODE_LENGTH }}"
+                                    autocomplete="off"
+                                >
+                            </label>
+                            <button type="button" class="secondary unlock-form__button" id="unlock-image-button">
+                                Unlock
+                            </button>
+                            <p class="unlock-message" id="unlock-message" aria-live="polite"></p>
+                        </div>
+                    </section>
+                {% endif %}
                 <div class="action-buttons">
                     <button type="submit" class="primary" id="send-button" {% if not form.image_label %}disabled{% endif %}>
                         Save
@@ -131,6 +169,7 @@
             }
 
             const buttons = Array.from(document.querySelectorAll('.thumbnail'));
+            const buttonMap = new Map(buttons.map(button => [button.dataset.label, button]));
             const selectionInput = document.getElementById('selected-label');
             const textXInput = document.getElementById('text-x');
             const textYInput = document.getElementById('text-y');
@@ -144,6 +183,11 @@
             const overlayCanvas = document.getElementById('name-overlay-canvas');
             const overlayCtx = overlayCanvas.getContext('2d');
             const nameInput = document.getElementById('badge-name-input');
+            const unlockPanel = document.getElementById('unlock-panel');
+            const unlockCodeInput = document.getElementById('unlock-secret-code');
+            const unlockButton = document.getElementById('unlock-image-button');
+            const unlockMessage = document.getElementById('unlock-message');
+            const unlockEndpoint = `${window.location.pathname.replace(/\/$/, '')}/unlock`;
 
             const PREVIEW_VISIBLE_CLASS = 'badge-preview__image--visible';
             const PREVIEW_MAX_WIDTH = 960;
@@ -211,6 +255,115 @@
                 overlayCanvas.style.pointerEvents = enabled ? 'auto' : 'none';
                 if (!enabled && !selectionInput.value) {
                     showPlaceholder();
+                }
+            }
+
+            function setUnlockStatus(message, isError = false) {
+                if (!unlockMessage) {
+                    return;
+                }
+                unlockMessage.textContent = message || '';
+                unlockMessage.classList.toggle('unlock-message--error', Boolean(isError && message));
+            }
+
+            function focusUnlockPanel(label) {
+                if (!unlockPanel) {
+                    return;
+                }
+                unlockPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                if (unlockCodeInput) {
+                    window.requestAnimationFrame(() => unlockCodeInput.focus());
+                }
+            }
+
+            function updateLockPanelVisibility() {
+                if (!unlockPanel) {
+                    return;
+                }
+                const remainingLocked = buttons.some(btn => btn.dataset.locked === 'true');
+                unlockPanel.style.display = remainingLocked ? '' : 'none';
+                if (!remainingLocked) {
+                    setUnlockStatus('');
+                }
+            }
+
+            function applyUnlockedImage(payload, shouldActivate = true) {
+                if (!payload || !payload.image_label) {
+                    return;
+                }
+                const label = payload.image_label;
+                const button = buttonMap.get(label);
+                if (!button) {
+                    return;
+                }
+                const imageMime = payload.image_mime_type || 'image/png';
+                const dataUri = `data:${imageMime};base64,${payload.image_base64}`;
+                button.dataset.locked = 'false';
+                button.dataset.src = dataUri;
+                button.dataset.color = payload.image_color || 'black';
+                button.dataset.font = payload.image_font || '';
+                button.classList.remove('thumbnail--locked');
+                const imgEl = button.querySelector('[data-thumbnail-image]');
+                if (imgEl) {
+                    imgEl.src = dataUri;
+                }
+                const overlay = button.querySelector('[data-lock-overlay]');
+                if (overlay) {
+                    overlay.remove();
+                }
+                updateLockPanelVisibility();
+                if (shouldActivate) {
+                    setActiveButton(button, true).catch(error => console.error(error));
+                }
+            }
+
+            async function attemptUnlock() {
+                if (!unlockCodeInput) {
+                    return;
+                }
+                const code = unlockCodeInput.value.trim();
+                if (!code) {
+                    setUnlockStatus('Enter the secret code.', true);
+                    unlockCodeInput.focus();
+                    return;
+                }
+                if (unlockButton) {
+                    unlockButton.disabled = true;
+                }
+                setUnlockStatus('Checking code...');
+                try {
+                    const response = await fetch(unlockEndpoint, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: new URLSearchParams({
+                            secret_code: code,
+                        }),
+                    });
+                    if (!response.ok) {
+                        let errorMessage = 'Invalid secret code.';
+                        try {
+                            const errorPayload = await response.json();
+                            if (errorPayload && errorPayload.detail) {
+                                errorMessage = errorPayload.detail;
+                            }
+                        } catch (_) {
+                            // Ignore parse failures.
+                        }
+                        throw new Error(errorMessage);
+                    }
+                    const payload = await response.json();
+                    applyUnlockedImage(payload);
+                    unlockCodeInput.value = '';
+                    setUnlockStatus(`Unlocked ${payload.image_label}.`);
+                } catch (error) {
+                    console.error(error);
+                    setUnlockStatus(error.message || 'Could not unlock that image.', true);
+                } finally {
+                    if (unlockButton) {
+                        unlockButton.disabled = false;
+                    }
                 }
             }
 
@@ -447,6 +600,12 @@
             });
 
             async function setActiveButton(button, shouldResetPosition) {
+                if (!button || button.dataset.locked === 'true') {
+                    if (button) {
+                        focusUnlockPanel(button.dataset.label);
+                    }
+                    return;
+                }
                 buttons.forEach(btn => btn.classList.remove('active'));
                 button.classList.add('active');
                 activeButton = button;
@@ -490,6 +649,10 @@
 
             buttons.forEach(button => {
                 button.addEventListener('click', () => {
+                    if (button.dataset.locked === 'true') {
+                        focusUnlockPanel(button.dataset.label);
+                        return;
+                    }
                     setActiveButton(button, true).catch(error => console.error(error));
                 });
             });
@@ -531,12 +694,31 @@
             overlayCanvas.addEventListener('pointerup', endDrag);
             overlayCanvas.addEventListener('pointercancel', endDrag);
 
+            if (unlockButton) {
+                unlockButton.addEventListener('click', () => {
+                    attemptUnlock().catch(error => console.error(error));
+                });
+            }
+            if (unlockCodeInput) {
+                unlockCodeInput.addEventListener('keydown', event => {
+                    if (event.key === 'Enter') {
+                        event.preventDefault();
+                        attemptUnlock().catch(error => console.error(error));
+                    }
+                });
+            }
+
             updateFontSizeDisplay();
+            updateLockPanelVisibility();
 
             if (selectionInput.value) {
                 const initialButton = buttons.find(btn => btn.dataset.label === selectionInput.value);
                 if (initialButton) {
-                    setActiveButton(initialButton, false).catch(error => console.error(error));
+                    if (initialButton.dataset.locked === 'true') {
+                        focusUnlockPanel(initialButton.dataset.label);
+                    } else {
+                        setActiveButton(initialButton, false).catch(error => console.error(error));
+                    }
                 }
             } else {
                 showPlaceholder();
