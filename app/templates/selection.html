@@ -27,6 +27,7 @@
                 <input type="hidden" name="image_label" id="selected-label" value="{{ form.image_label }}">
                 <input type="hidden" name="text_x" id="text-x" value="{{ form.text_x }}">
                 <input type="hidden" name="text_y" id="text-y" value="{{ form.text_y }}">
+                <input type="hidden" name="download_after_save" id="download-after-save" value="0">
                 <label class="field">
                     <span>Name</span>
                     <input
@@ -131,14 +132,14 @@
                     {% if profile.firmware_base64 %}
                         <a
                             class="secondary download-button"
-                            id="download-firmware-button"
+                            id="download-firmware-link"
                             href="data:application/octet-stream;base64,{{ profile.firmware_base64 }}"
                             download="{{ profile.unique_id }}.bin"
                         >
                             Download Firmware
                         </a>
                     {% else %}
-                        <button type="button" class="secondary download-button" id="download-firmware-button" disabled>
+                        <button type="button" class="secondary download-button" disabled>
                             Download Firmware
                         </button>
                     {% endif %}
@@ -179,6 +180,8 @@
             const fontSizeInput = document.getElementById('font-size-input');
             const fontSizeOutput = document.getElementById('font-size-output');
             const sendButton = document.getElementById('send-button');
+            const downloadLink = document.getElementById('download-firmware-link');
+            const downloadAfterSaveInput = document.getElementById('download-after-save');
             const previewContainer = document.getElementById('badge-preview');
             const previewImage = document.getElementById('badge-preview-image');
             const previewPlaceholder = document.getElementById('badge-preview-placeholder');
@@ -191,12 +194,16 @@
             const unlockButton = document.getElementById('unlock-image-button');
             const unlockMessage = document.getElementById('unlock-message');
             const unlockEndpoint = `${window.location.pathname.replace(/\/$/, '')}/unlock`;
+            const selectionForm = document.getElementById('selection-form');
 
             const PREVIEW_VISIBLE_CLASS = 'badge-preview__image--visible';
             const PREVIEW_MAX_WIDTH = 960;
             const PREVIEW_SCALE = 4;
             const FONT_BASE_PATH = "{{ url_for('static', path='fonts/') }}";
             const fontCache = new Map();
+
+            let autoDownloadPending = {{ "true" if auto_download else "false" }};
+            let skipSaveForDownload = false;
 
             let activeButton = null;
             let currentScale = 1;
@@ -210,6 +217,22 @@
 
             function updateFontSizeDisplay() {
                 fontSizeOutput.textContent = fontSizeInput.value;
+            }
+
+            if (downloadAfterSaveInput) {
+                downloadAfterSaveInput.value = '0';
+            }
+
+            if (downloadLink && selectionForm && downloadAfterSaveInput) {
+                downloadLink.addEventListener('click', event => {
+                    if (skipSaveForDownload) {
+                        skipSaveForDownload = false;
+                        return;
+                    }
+                    event.preventDefault();
+                    downloadAfterSaveInput.value = '1';
+                    selectionForm.requestSubmit();
+                });
             }
 
             function clearOverlayCanvas() {
@@ -734,6 +757,13 @@
                     redrawOverlay();
                     applyOverlayPosition();
                 });
+            }
+
+            if (autoDownloadPending && downloadLink) {
+                setTimeout(() => {
+                    skipSaveForDownload = true;
+                    downloadLink.click();
+                }, 400);
             }
         })();
     </script>

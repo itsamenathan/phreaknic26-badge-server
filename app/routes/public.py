@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import logging
 import re
+from urllib.parse import urlencode
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Form, Request, status
@@ -109,6 +110,7 @@ def _render_selection_page(
     sent: bool,
     form: Optional[Dict[str, Any]] = None,
     status_code: int = status.HTTP_200_OK,
+    auto_download: bool = False,
 ) -> Response:
     current_form = form or {}
     form_data = _build_selection_form(
@@ -146,6 +148,7 @@ def _render_selection_page(
             "MAX_BADGE_FONT_SIZE": MAX_BADGE_FONT_SIZE,
             "MAX_BADGE_NAME_LENGTH": MAX_BADGE_NAME_LENGTH,
             "MAX_IMAGE_SECRET_CODE_LENGTH": MAX_IMAGE_SECRET_CODE_LENGTH,
+            "auto_download": auto_download,
         },
         status_code=status_code,
     )
@@ -235,6 +238,7 @@ async def get_badge(
     unique_id: str,
     sent: Optional[str] = None,
     error: Optional[str] = None,
+    download: Optional[str] = None,
 ) -> Response:
     unique_id = unique_id.strip()
     if len(unique_id) > MAX_BADGE_ID_LENGTH:
@@ -271,6 +275,7 @@ async def get_badge(
         profile=profile,
         error=error,
         sent=sent is not None,
+        auto_download=download == "1",
     )
 
 
@@ -283,6 +288,7 @@ async def post_badge(
     text_x: Optional[str] = Form(None),
     text_y: Optional[str] = Form(None),
     override_name: Optional[str] = Form(None, max_length=MAX_BADGE_NAME_LENGTH),
+    download_after_save: Optional[str] = Form("0"),
 ) -> Response:
     unique_id = unique_id.strip()
     if len(unique_id) > MAX_BADGE_ID_LENGTH:
@@ -303,6 +309,7 @@ async def post_badge(
         text_y=text_y,
         display_name=display_name,
     )
+    download_requested = (download_after_save or "0") == "1"
 
     def _parse_coordinate(raw_value: Optional[str]) -> Optional[int]:
         if raw_value in (None, ""):
@@ -524,8 +531,10 @@ async def post_badge(
     profile["firmware_base64"] = firmware_base64
     profile["firmware_hash"] = firmware_hash
 
-    redirect_url = request.url_for("get_badge", unique_id=unique_id)
-    redirect_url = f"{redirect_url}?sent=1"
+    query_params = {"sent": "1"}
+    if download_requested:
+        query_params["download"] = "1"
+    redirect_url = f"{request.url_for('get_badge', unique_id=unique_id)}?{urlencode(query_params)}"
     return RedirectResponse(redirect_url, status_code=status.HTTP_303_SEE_OTHER)
 
 
