@@ -1147,6 +1147,23 @@ p {
     border-color: rgba(48, 255, 152, 0.25);
 }
 
+.pi-easter-egg {
+    position: fixed;
+    right: 1.5rem;
+    bottom: 1.5rem;
+    font-size: 1.5rem;
+    color: rgba(255, 255, 255, 0.15);
+    text-decoration: none;
+    transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.pi-easter-egg:hover,
+.pi-easter-egg:focus-visible {
+    color: #ffe066;
+    transform: scale(1.15);
+    outline: none;
+}
+
 .field input[type="file"] {
     color-scheme: dark;
 }

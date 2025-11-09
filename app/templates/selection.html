@@ -153,6 +153,9 @@
             </div>
         {% endif %}
     </main>
+    <a class="pi-easter-egg" href="{{ url_for('pizza_easter_egg') }}" aria-label="π">
+        π
+    </a>
     <script>
         (function () {
             const defaultName = {{ (profile.name if profile else '') | tojson }};
