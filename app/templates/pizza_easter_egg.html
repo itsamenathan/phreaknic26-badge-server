@@ -6,6 +6,7 @@
     <style>
         :root {
             font-family: 'Comic Sans MS', 'Courier New', cursive;
+            --pizza-slice: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath fill='%23ffd36b' d='M32 4 4 60h56z'/%3E%3Cpath fill='%23d14900' d='M32 12 10 58h44z'/%3E%3Ccircle fill='%23870000' cx='26' cy='30' r='5'/%3E%3Ccircle fill='%23870000' cx='40' cy='38' r='4.5'/%3E%3Ccircle fill='%23870000' cx='37' cy='22' r='4'/%3E%3C/svg%3E");
         }
         body {
             margin: 0;
@@ -29,7 +30,7 @@
             position: fixed;
             width: 80px;
             height: 80px;
-            background: url("data:image/gif;base64,R0lGODlhEAAQAPIAAP///9bW1vLy8vj4+Nzc3OXl5f///wAAACH5BAEAAAQALAAAAAAQABAAAAQosMlJq7046827/2AoHAiJoJRoAOw==") no-repeat center/contain;
+            background: var(--pizza-slice) no-repeat center/contain;
             animation: drift 8s linear infinite, spin 3s linear infinite;
             pointer-events: none;
             filter: drop-shadow(0 0 10px #FF00FF);
@@ -79,6 +80,7 @@
             text-align: center;
             border-bottom: 5px groove #FF00FF;
             position: relative;
+            overflow: visible;
         }
         .header h1 {
             margin: 0;
@@ -110,14 +112,18 @@
             display: flex;
             gap: 0.5rem;
             flex-direction: column;
+            pointer-events: none;
+            z-index: 3;
         }
         .pizza-icons.left { left: 0.5rem; }
         .pizza-icons.right { right: 0.5rem; }
-        .pizza-icons img {
+        .pizza-slice-icon {
             width: 50px;
             height: 50px;
             animation: wiggle 1s ease-in-out infinite;
             filter: drop-shadow(0 0 5px #FFD700);
+            display: block;
+            background: var(--pizza-slice) no-repeat center/contain;
         }
         @keyframes wiggle {
             0%, 100% { transform: rotate(-15deg); }
@@ -233,13 +239,15 @@
             gap: 1rem;
             flex-wrap: wrap;
         }
-        .gif-row img {
-            width: 80px;
-            height: 80px;
-            animation: bounce 1s ease-in-out infinite;
+        .gif-row .pizza-slice-large {
+            width: 90px;
+            height: 90px;
+            background: var(--pizza-slice) no-repeat center/contain;
+            animation: bounce 1s ease-in-out infinite, spin 4s linear infinite;
+            filter: drop-shadow(0 0 10px #00FFFF);
         }
-        .gif-row img:nth-child(2) { animation-delay: 0.2s; }
-        .gif-row img:nth-child(3) { animation-delay: 0.4s; }
+        .gif-row .pizza-slice-large:nth-child(2) { animation-delay: 0.2s; }
+        .gif-row .pizza-slice-large:nth-child(3) { animation-delay: 0.4s; }
         @keyframes bounce {
             0%, 100% { transform: translateY(0); }
             50% { transform: translateY(-10px); }
@@ -265,27 +273,24 @@
     <div class="window">
         <div class="ticker">
             <marquee behavior="scroll" direction="left" scrollamount="8">
-                ⭐ FREE 28.8K MODEM WITH EVERY ORDER! ⭐ NOW WITH NETSCAPE NAVIGATOR! ⭐ VISIT OUR GOPHER SITE! ⭐ WINDOWS 95 COMPATIBLE! ⭐
+                ⭐ FREE FLOPPY DISK WITH EVERY ORDER! ⭐ NOW WITH NETSCAPE NAVIGATOR! ⭐ VISIT OUR GOPHER SITE! ⭐ WINDOWS 95 COMPATIBLE! ⭐
             </marquee>
         </div>
         <div class="header">
             <div class="pizza-icons left">
                 {% for _ in range(4) %}
-                    <img src="data:image/gif;base64,R0lGODlhEAAQAPIAAP///9bW1vLy8vj4+Nzc3OXl5f///wAAACH5BAEAAAQALAAAAAAQABAAAAQosMlJq7046827/2AoHAiJoJRoAOw==" alt="pizza slice">
+                    <span class="pizza-slice-icon" aria-hidden="true"></span>
                 {% endfor %}
             </div>
             <h1>🍕 Pizza.Net 🍕</h1>
             <div class="tagline">⚡ We deliver the best pizza in Cyberspace! ⚡</div>
             <div class="pizza-icons right">
                 {% for _ in range(4) %}
-                    <img src="data:image/gif;base64,R0lGODlhEAAQAPIAAP///9bW1vLy8vj4+Nzc3OXl5f///wAAACH5BAEAAAQALAAAAAAQABAAAAQosMlJq7046827/2AoHAiJoJRoAOw==" alt="pizza slice">
+                    <span class="pizza-slice-icon" aria-hidden="true"></span>
                 {% endfor %}
             </div>
         </div>
         <div class="content">
-            <div class="construction">
-                🚧 UNDER CONSTRUCTION 🚧 BEST VIEWED IN NETSCAPE 4.0 🚧
-            </div>
             <div class="form-container">
                 <h2>💻 Please enter your name, address and phone: 💻</h2>
                 
@@ -328,14 +333,14 @@
                 </div>
             </div>
             <div class="gif-row">
-                <img src="data:image/gif;base64,R0lGODlhEAAQAPIAAP///9bW1vLy8vj4+Nzc3OXl5f///wAAACH5BAEAAAQALAAAAAAQABAAAAQosMlJq7046827/2AoHAiJoJRoAOw==" alt="pizza">
-                <img src="data:image/gif;base64,R0lGODlhEAAQAPIAAP///9bW1vLy8vj4+Nzc3OXl5f///wAAACH5BAEAAAQALAAAAAAQABAAAAQosMlJq7046827/2AoHAiJoJRoAOw==" alt="pizza">
-                <img src="data:image/gif;base64,R0lGODlhEAAQAPIAAP///9bW1vLy8vj4+Nzc3OXl5f///wAAACH5BAEAAAQALAAAAAAQABAAAAQosMlJq7046827/2AoHAiJoJRoAOw==" alt="pizza">
+                <span class="pizza-slice-large" aria-hidden="true"></span>
+                <span class="pizza-slice-large" aria-hidden="true"></span>
+                <span class="pizza-slice-large" aria-hidden="true"></span>
             </div>
         </div>
         <div class="ticker">
             <marquee behavior="alternate" scrollamount="10">
-                🔥 HOT HOT HOT! 🔥 ORDER NOW! 🔥 BACKDOOR SPECIAL! 🔥 PIZZA PIZZA PIZZA! 🔥
+                🔥 HOT HOT HOT! 🔥 ORDER NOW! 🔥 SUPER SPECIAL! 🔥 PIZZA PIZZA PIZZA! 🔥
             </marquee>
         </div>
     </div>
