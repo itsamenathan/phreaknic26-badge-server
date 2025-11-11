@@ -1,26 +1,23 @@
-version: "3.9"
-
 services:
-#  app:
-#    build:
-#      context: .
-#    image: phreaknic26-badge-server:latest
-#    restart: unless-stopped
-#    depends_on:
-#      db:
-#        condition: service_healthy
-#    environment:
-#      DATABASE_URL: postgresql://badge_user:badge_pass@db:5432/badge_db
-#      WORK_BASIC_AUTH_USERNAME: queue_worker
-#      WORK_BASIC_AUTH_PASSWORD: super-secret-password
-#      DB_POOL_MIN_SIZE: 1
-#      DB_POOL_MAX_SIZE: 10
-#    ports:
-#      - "8000:8000"
+  app:
+    build:
+      context: .
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://badge_user:badge_pass@db:5432/badge_db
+      WORK_BASIC_AUTH_USERNAME: phreaknic26
+      WORK_BASIC_AUTH_PASSWORD: password
+    restart: unless-stopped
 
   db:
     image: postgres:15
     restart: unless-stopped
+    ports:
+      - "5432:5432"
     environment:
       POSTGRES_DB: badge_db
       POSTGRES_USER: badge_user
@@ -32,8 +29,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    ports:
-      - "5432:5432"
 
 volumes:
   pgdata:

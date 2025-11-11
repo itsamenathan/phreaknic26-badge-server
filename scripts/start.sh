@@ -13,10 +13,8 @@ else
 fi
 
 export DATABASE_URL="${DATABASE_URL:-postgresql+asyncpg://badge_user:badge_pass@localhost:5432/badge_db}"
-export WORK_BASIC_AUTH_USERNAME="${WORK_BASIC_AUTH_USERNAME:-queue_worker}"
-export WORK_BASIC_AUTH_PASSWORD="${WORK_BASIC_AUTH_PASSWORD:-super-secret-password}"
-export DB_POOL_MIN_SIZE="${DB_POOL_MIN_SIZE:-1}"
-export DB_POOL_MAX_SIZE="${DB_POOL_MAX_SIZE:-10}"
+export WORK_BASIC_AUTH_USERNAME="${WORK_BASIC_AUTH_USERNAME:-phreaknic26}"
+export WORK_BASIC_AUTH_PASSWORD="${WORK_BASIC_AUTH_PASSWORD:-password}"
 
 cd "$PROJECT_ROOT"
 
