@@ -180,6 +180,7 @@ async def admin_logs_page(
         entry
         for entry in get_recent_logs(safe_limit)
         if "/admin/logs" not in entry.message
+        and "/static/style.css" not in entry.message
     ]
     search_term = (search or "").strip()
     if search_term:
