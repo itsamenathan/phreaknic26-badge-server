@@ -45,7 +45,9 @@ async def admin_create_badge_api(
     mac_address = normalise_mac_address(payload.mac_address)
     if mac_address is None:
         return JSONResponse(
-            {"detail": "Invalid MAC address. Use format AA:BB:CC:DD:EE:FF."},
+            {
+                "detail": "Invalid MAC address. Use format AA:BB:CC:DD:EE:FF:GG:HH."
+            },
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 

@@ -121,7 +121,7 @@ CREATE TABLE available_images (
   Saves the badge ID, name, and MAC address so the attendee can access `/badges/{unique_id}`.
 
 - `POST /admin/api/badges` *(Basic Auth, JSON)*  
-  Accepts a JSON body `{"unique_id": "...", "name": "...", "mac_address": "AA:BB:CC:DD:EE:FF"}` and returns `201 Created` for new badges or `200 OK` when updating an existing record. The MAC address is normalised and must be unique.
+  Accepts a JSON body `{"unique_id": "...", "name": "...", "mac_address": "AA:BB:CC:DD:EE:FF:GG:HH"}` and returns `201 Created` for new badges or `200 OK` when updating an existing record. The MAC address is normalised and must be unique.
 
 - `GET /admin/api/badges/mac/{mac_address}` *(Basic Auth)*  
   Returns the full badge profile (ID, name, available images, latest firmware, firmware hash) for the given MAC address. Responds with `404` if no badge matches.
@@ -141,7 +141,7 @@ CREATE TABLE available_images (
 ## API Endpoints
 
 - `POST /admin/api/badges` *(Basic Auth, JSON)*  
-  Accepts a JSON body `{"unique_id": "...", "name": "...", "mac_address": "AA:BB:CC:DD:EE:FF"}` and returns `201 Created` for new badges or `200 OK` when updating an existing record. The MAC address is normalised and must be unique.
+  Accepts a JSON body `{"unique_id": "...", "name": "...", "mac_address": "AA:BB:CC:DD:EE:FF:GG:HH"}` and returns `201 Created` for new badges or `200 OK` when updating an existing record. The MAC address is normalised and must be unique.
 
 - `GET /api/badges/mac/{mac_address}`  
   Public JSON endpoint that returns only the latest `firmware_base64` and `firmware_hash` for the badge registered to that MAC address. Useful for firmware tools that only know the hardware MAC.

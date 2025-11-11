@@ -5,7 +5,11 @@ from typing import List, Optional
 from sqlalchemy import Boolean, ForeignKey, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
-from .constants import DEFAULT_IMAGE_COLOR, DEFAULT_IMAGE_FONT
+from .constants import (
+    DEFAULT_IMAGE_COLOR,
+    DEFAULT_IMAGE_FONT,
+    MAX_BADGE_MAC_ADDRESS_LENGTH,
+)
 
 
 class Base(DeclarativeBase):
@@ -18,7 +22,7 @@ class Badge(Base):
     unique_id: Mapped[str] = mapped_column(String, primary_key=True)
     name: Mapped[str] = mapped_column(Text)
     mac_address: Mapped[Optional[str]] = mapped_column(
-        String(17),
+        String(MAX_BADGE_MAC_ADDRESS_LENGTH),
         unique=True,
         nullable=True,
     )

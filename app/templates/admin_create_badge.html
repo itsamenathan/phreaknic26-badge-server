@@ -35,7 +35,7 @@
             </label>
             <label class="field">
                 <span>MAC Address</span>
-                <input type="text" name="mac_address" required value="{{ form.mac_address }}" maxlength="{{ MAX_BADGE_MAC_ADDRESS_LENGTH }}" placeholder="AA:BB:CC:DD:EE:FF">
+                <input type="text" name="mac_address" required value="{{ form.mac_address }}" maxlength="{{ MAX_BADGE_MAC_ADDRESS_LENGTH }}" placeholder="AA:BB:CC:DD:EE:FF:GG:HH">
             </label>
             <button type="submit" class="primary">Create Badge</button>
         </form>
@@ -143,7 +143,7 @@
                                             </label>
                                             <label class="field compact">
                                                 <span class="visually-hidden">MAC for {{ badge.unique_id }}</span>
-                                                <input type="text" name="mac_address" value="{{ badge.mac_address or '' }}" required maxlength="{{ MAX_BADGE_MAC_ADDRESS_LENGTH }}" placeholder="AA:BB:CC:DD:EE:FF">
+                                                <input type="text" name="mac_address" value="{{ badge.mac_address or '' }}" required maxlength="{{ MAX_BADGE_MAC_ADDRESS_LENGTH }}" placeholder="AA:BB:CC:DD:EE:FF:GG:HH">
                                             </label>
                                             <button type="submit" class="secondary">Update</button>
                                         </form>

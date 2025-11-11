@@ -617,7 +617,7 @@ async def admin_badges_submit(
             request,
             form_data,
             success=None,
-            error="Please enter a valid MAC address (e.g. AA:BB:CC:DD:EE:FF).",
+            error="Please enter a valid MAC address (e.g. AA:BB:CC:DD:EE:FF:GG:HH).",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
     form_data["mac_address"] = normalised_mac
