@@ -32,6 +32,17 @@
                     >
                     <button type="submit">Refresh</button>
                 </div>
+                <label class="log-controls__search">
+                    <span>Search logs</span>
+                    <input
+                        type="search"
+                        id="log-search"
+                        name="search"
+                        placeholder="Filter by text, level, or logger"
+                        autocomplete="off"
+                        value="{{ search_term }}"
+                    >
+                </label>
                 <label class="log-controls__autorefresh">
                     <input type="checkbox" id="auto-refresh-toggle" checked>
                     <span>Auto-refresh every 10 seconds</span>
@@ -58,13 +69,13 @@
     </main>
     <script>
         (function () {
-            const STORAGE_KEY = "adminLogs.autoRefresh";
+            const AUTO_REFRESH_KEY = "adminLogs.autoRefresh";
             const toggle = document.getElementById("auto-refresh-toggle");
             const intervalMs = 10000;
             let timer = null;
 
-            const saved = localStorage.getItem(STORAGE_KEY);
-            if (saved === "false") {
+            const savedAutoRefresh = localStorage.getItem(AUTO_REFRESH_KEY);
+            if (savedAutoRefresh === "false") {
                 toggle.checked = false;
             }
 
@@ -90,7 +101,7 @@
                 } else {
                     stop();
                 }
-                localStorage.setItem(STORAGE_KEY, String(toggle.checked));
+                localStorage.setItem(AUTO_REFRESH_KEY, String(toggle.checked));
             };
 
             toggle.addEventListener("change", sync);

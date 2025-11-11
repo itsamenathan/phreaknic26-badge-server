@@ -170,15 +170,40 @@ async def admin_index(request: Request) -> Response:
 
 
 @router.get("/logs", response_class=HTMLResponse, name="admin_logs_page")
-async def admin_logs_page(request: Request, limit: int = 200) -> Response:
+async def admin_logs_page(
+    request: Request,
+    limit: int = 200,
+    search: Optional[str] = None,
+) -> Response:
     safe_limit = max(10, min(limit, 1000))
-    logs = get_recent_logs(safe_limit)
+    logs = [
+        entry
+        for entry in get_recent_logs(safe_limit)
+        if "/admin/logs" not in entry.message
+    ]
+    search_term = (search or "").strip()
+    if search_term:
+        needle = search_term.lower()
+        logs = [
+            entry
+            for entry in logs
+            if any(
+                needle in value
+                for value in (
+                    entry.timestamp.strftime("%Y-%m-%d %H:%M:%S %Z").lower(),
+                    entry.level.lower(),
+                    entry.logger_name.lower(),
+                    entry.message.lower(),
+                )
+            )
+        ]
     return templates.TemplateResponse(
         "admin_logs.html",
         {
             "request": request,
             "logs": logs,
             "limit": safe_limit,
+            "search_term": search_term,
         },
     )
 

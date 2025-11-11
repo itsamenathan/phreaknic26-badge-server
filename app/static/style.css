@@ -1436,6 +1436,37 @@ p {
     color: #d4ffe7;
 }
 
+.log-controls__search {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin-top: 0.75rem;
+}
+
+.log-controls__search span {
+    font-weight: 600;
+    color: #8cf6be;
+}
+
+.log-controls__search input[type="search"] {
+    width: 100%;
+    padding: 0.6rem 0.9rem;
+    border-radius: 10px;
+    border: 1px solid rgba(48, 255, 152, 0.28);
+    background: rgba(0, 16, 10, 0.55);
+    color: #eafff3;
+    font: inherit;
+}
+
+.log-controls__search input[type="search"]::placeholder {
+    color: rgba(234, 255, 243, 0.6);
+}
+
+.log-controls__search input[type="search"]:focus {
+    outline: 2px solid rgba(48, 255, 152, 0.55);
+    border-color: rgba(48, 255, 152, 0.65);
+}
+
 .log-controls__autorefresh {
     display: flex;
     align-items: center;
