@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Server Logs</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+</head>
+<body class="logs-page">
+    <main class="container container--wide">
+        <header>
+            <h1>Server Logs</h1>
+            <p>Displaying the latest {{ logs | length }} entries (limit {{ limit }}).</p>
+        </header>
+
+        <nav class="breadcrumbs">
+            <a href="{{ url_for('admin_index') }}">&larr; Back to dashboard</a>
+        </nav>
+
+        <section class="log-controls">
+            <form method="get" class="log-controls__form">
+                <label for="limit" class="log-controls__label">Entries to show</label>
+                <div class="log-controls__fields">
+                    <input
+                        type="number"
+                        id="limit"
+                        name="limit"
+                        min="10"
+                        max="1000"
+                        step="10"
+                        value="{{ limit }}"
+                    >
+                    <button type="submit">Refresh</button>
+                </div>
+                <label class="log-controls__autorefresh">
+                    <input type="checkbox" id="auto-refresh-toggle" checked>
+                    <span>Auto-refresh every 10 seconds</span>
+                </label>
+            </form>
+        </section>
+
+        <section class="log-stream">
+            {% if logs %}
+                <ul class="log-list">
+                    {% for entry in logs %}
+                        <li class="log-list__item">
+                            <span class="log-list__timestamp">{{ entry.timestamp.strftime("%Y-%m-%d %H:%M:%S %Z") }}</span>
+                            <span class="log-list__level log-list__level--{{ entry.level | lower }}">{{ entry.level }}</span>
+                            <span class="log-list__logger">{{ entry.logger_name }}</span>
+                            <span class="log-list__message">{{ entry.message }}</span>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="log-empty">No log entries captured yet. Trigger a request and refresh this page.</p>
+            {% endif %}
+        </section>
+    </main>
+    <script>
+        (function () {
+            const STORAGE_KEY = "adminLogs.autoRefresh";
+            const toggle = document.getElementById("auto-refresh-toggle");
+            const intervalMs = 10000;
+            let timer = null;
+
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved === "false") {
+                toggle.checked = false;
+            }
+
+            const start = () => {
+                if (timer || !toggle.checked) {
+                    return;
+                }
+                timer = setInterval(() => {
+                    window.location.reload();
+                }, intervalMs);
+            };
+
+            const stop = () => {
+                if (timer) {
+                    clearInterval(timer);
+                    timer = null;
+                }
+            };
+
+            const sync = () => {
+                if (toggle.checked) {
+                    start();
+                } else {
+                    stop();
+                }
+                localStorage.setItem(STORAGE_KEY, String(toggle.checked));
+            };
+
+            toggle.addEventListener("change", sync);
+            sync();
+        })();
+    </script>
+</body>
+</html>

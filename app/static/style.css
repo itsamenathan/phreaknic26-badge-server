@@ -33,6 +33,12 @@ select {
     font: inherit;
 }
 
+.logs-page {
+    font-family: "IBM Plex Mono", "Fira Code", "SFMono-Regular", Consolas, monospace;
+    font-size: 15px;
+    text-shadow: none;
+}
+
 .container {
     width: min(960px, 90vw);
     padding: 2.5rem;
@@ -1376,4 +1382,157 @@ p {
     .badge-table__actions button {
         justify-self: stretch;
     }
+}
+
+.breadcrumbs {
+    margin-bottom: 1.5rem;
+}
+
+.breadcrumbs a {
+    color: #8cf6be;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.breadcrumbs a:hover,
+.breadcrumbs a:focus-visible {
+    color: #c8ffe7;
+    text-decoration: underline;
+}
+
+.log-controls {
+    margin-bottom: 1.5rem;
+}
+
+.log-controls__form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    padding: 1.2rem;
+    border-radius: 14px;
+    border: 1px solid rgba(48, 255, 152, 0.18);
+    background: rgba(6, 20, 10, 0.9);
+}
+
+.log-controls__label {
+    font-weight: 600;
+    color: #8cf6be;
+}
+
+.log-controls__fields {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.log-controls input[type="number"] {
+    width: 100%;
+    max-width: 160px;
+    padding: 0.5rem 0.85rem;
+    border-radius: 10px;
+    border: 1px solid rgba(48, 255, 152, 0.28);
+    background: rgba(0, 20, 10, 0.45);
+    color: #d4ffe7;
+}
+
+.log-controls__autorefresh {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 500;
+    color: #b0f8d4;
+    margin-top: 0.5rem;
+    cursor: pointer;
+}
+
+.log-controls__autorefresh input {
+    width: auto;
+    transform: scale(1.2);
+}
+
+.log-stream {
+    border-radius: 16px;
+    border: 1px solid rgba(48, 255, 152, 0.16);
+    background: rgba(4, 16, 8, 0.92);
+    padding: 1rem;
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+.log-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    font-family: "IBM Plex Mono", "Fira Code", monospace;
+    font-size: 0.92rem;
+}
+
+.log-list__item {
+    display: grid;
+    grid-template-columns: minmax(180px, 215px) auto minmax(140px, 1fr);
+    gap: 0.75rem;
+    align-items: center;
+    padding: 0.65rem 0.5rem;
+    border-bottom: 1px solid rgba(48, 255, 152, 0.08);
+}
+
+@media (max-width: 720px) {
+    .log-list__item {
+        grid-template-columns: 1fr;
+        gap: 0.4rem;
+    }
+}
+
+.log-list__timestamp {
+    color: #9bf2c4;
+    font-weight: 600;
+}
+
+.log-list__level {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.1rem 0.6rem;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.log-list__level--info {
+    color: #30ff98;
+    border-color: rgba(48, 255, 152, 0.45);
+}
+
+.log-list__level--warning {
+    color: #ffd87a;
+    border-color: rgba(255, 216, 122, 0.45);
+}
+
+.log-list__level--error,
+.log-list__level--critical {
+    color: #ff9898;
+    border-color: rgba(255, 120, 120, 0.55);
+}
+
+.log-list__logger {
+    color: #7af0b2;
+    font-weight: 500;
+}
+
+.log-list__message {
+    color: #e0ffee;
+    word-break: break-word;
+    white-space: pre-wrap;
+    grid-column: 1 / -1;
+    display: block;
+    margin-top: 0.2rem;
+}
+
+.log-empty {
+    text-align: center;
+    color: #a7f7cf;
+    margin: 2rem 0;
 }

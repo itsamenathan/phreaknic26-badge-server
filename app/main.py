@@ -9,10 +9,12 @@ from starlette.staticfiles import StaticFiles
 from .config import get_settings
 from .db import db
 from .dependencies import BASE_DIR
+from .logs import install_log_buffer_handler
 from .routes import admin_api, admin_pages, public, system
 
 
 logger = logging.getLogger(__name__)
+install_log_buffer_handler()
 
 app = FastAPI(title="PhreakNIC 26 Badge Server", default_response_class=HTMLResponse)
 

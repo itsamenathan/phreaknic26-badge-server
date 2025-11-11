@@ -25,6 +25,7 @@ from ..constants import (
 )
 from ..db import db
 from ..dependencies import templates, verify_credentials
+from ..logs import get_recent_logs
 from ..utils import normalise_mac_address
 
 
@@ -164,6 +165,20 @@ async def admin_index(request: Request) -> Response:
         "admin_index.html",
         {
             "request": request,
+        },
+    )
+
+
+@router.get("/logs", response_class=HTMLResponse, name="admin_logs_page")
+async def admin_logs_page(request: Request, limit: int = 200) -> Response:
+    safe_limit = max(10, min(limit, 1000))
+    logs = get_recent_logs(safe_limit)
+    return templates.TemplateResponse(
+        "admin_logs.html",
+        {
+            "request": request,
+            "logs": logs,
+            "limit": safe_limit,
         },
     )
 

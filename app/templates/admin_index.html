@@ -15,9 +15,15 @@
         <section class="admin-links">
             <a class="admin-link-card" href="{{ url_for('admin_badges_form') }}">
                 <h2>Manage Badges</h2>
+                <p>Create, edit, and review attendee badges.</p>
             </a>
             <a class="admin-link-card" href="{{ url_for('admin_images_form') }}">
                 <h2>Manage Artwork</h2>
+                <p>Upload artwork and configure badge images.</p>
+            </a>
+            <a class="admin-link-card" href="{{ url_for('admin_logs_page') }}">
+                <h2>Server Logs</h2>
+                <p>Inspect recent requests and error messages.</p>
             </a>
         </section>
     </main>
