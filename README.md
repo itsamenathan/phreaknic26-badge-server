@@ -3,11 +3,12 @@
 Python web service for managing PhreakNIC badge artwork, from attendee selection through to firmware generation.
 
 ## Features
-- Attendee badge page (`/badges/{unique_id}`) shows the badge holder’s name and current artwork options. (Legacy `/id={unique_id}` still works.) A landing page `/` lets users enter their badge ID.
+- Attendee badge page (`/badges/{unique_id}`) shows the badge holder’s name and current artwork options. A landing page `/` lets users enter their badge ID.
 - Admin artwork screen (`/admin/images`) lets authenticated staff add, preview, and delete available badge artwork.
 - Admin badge management screen (`/admin/badges`) registers badge IDs, names, and MAC addresses, shows the most recent personalised image, and surfaces firmware download links (with hashes) per badge. Previews can be enlarged in-place so you can review pixel-perfect artwork before flashing.
 - Admin hub (`/admin`) links to badge management and artwork tools behind a single login.
 - Programmatic badge API (`POST /admin/api/badges`) lets trusted systems register attendees (ID, name, MAC) via JSON.
+- Programmatic badge artwork upload (`POST /admin/api/images`) lets trusted systems push new artwork via multipart form data (image file + metadata), mirroring the admin UI validations.
 - JSON lookup endpoints allow trusted systems or devices to resolve badges by MAC address.
 - Firmware generation pipeline patches a default binary with personalised artwork so staff can download ready-to-flash firmware per badge.
 - Each generated firmware also records an 8-byte SHA256 hash prefix so tooling can verify the payload before flashing.
@@ -121,7 +122,7 @@ CREATE TABLE available_images (
   Saves the badge ID, name, and MAC address so the attendee can access `/badges/{unique_id}`.
 
 - `POST /admin/api/badges` *(Basic Auth, JSON)*  
-  Accepts a JSON body `{"unique_id": "...", "name": "...", "mac_address": "AA:BB:CC:DD:EE:FF:GG:HH"}` and returns `201 Created` for new badges or `200 OK` when updating an existing record. The MAC address is normalised and must be unique.
+  Accepts a JSON body `{"unique_id": "...", "name": "...", "mac_address": "AA:BB:CC:DD:EE:FF:00:111"}` and returns `201 Created` for new badges or `200 OK` when updating an existing record. The MAC address is normalised and must be unique.
 
 - `GET /admin/api/badges/mac/{mac_address}` *(Basic Auth)*  
   Returns the full badge profile (ID, name, available images, latest firmware, firmware hash) for the given MAC address. Responds with `404` if no badge matches.
@@ -141,10 +142,26 @@ CREATE TABLE available_images (
 ## API Endpoints
 
 - `POST /admin/api/badges` *(Basic Auth, JSON)*  
-  Accepts a JSON body `{"unique_id": "...", "name": "...", "mac_address": "AA:BB:CC:DD:EE:FF:GG:HH"}` and returns `201 Created` for new badges or `200 OK` when updating an existing record. The MAC address is normalised and must be unique.
+  Accepts a JSON body `{"unique_id": "...", "name": "...", "mac_address": "AA:BB:CC:DD:EE:FF:00:111"}` and returns `201 Created` for new badges or `200 OK` when updating an existing record. The MAC address is normalised and must be unique.
+
+- `POST /admin/api/images` *(Basic Auth, multipart)*  
+  Accepts `image_label`, `image_file`, `image_color`, `image_font`, optional `secret_code`, `requires_secret_code`, and `display_order` fields. Returns `201 Created` when a new artwork label is stored or `200 OK` if an existing label is replaced. Validates color/font choices and enforces the same rules as the admin UI.
 
 - `GET /api/badges/mac/{mac_address}`  
   Public JSON endpoint that returns only the latest `firmware_base64` and `firmware_hash` for the badge registered to that MAC address. Useful for firmware tools that only know the hardware MAC.
+
+### Utility scripts
+
+- `scripts/upload_badge_images.py`  
+  Convenience CLI that iterates over a directory of artwork files (defaults to `~/dev/github/tylercrumpton/phreaknic26-esl-badge/images`) and uploads each image via `POST /admin/api/images`. Requires `httpx` (`uv sync --group dev`). Example:
+  ```bash
+  uv run python scripts/upload_badge_images.py \
+    --username "$WORK_BASIC_AUTH_USERNAME" \
+    --password "$WORK_BASIC_AUTH_PASSWORD" \
+    --api-url http://localhost:8000/admin/api/images \
+    --image-color black \
+    --image-font Awkward.ttf
+  ```
 
 ## Error Handling & Security
 - All database interactions run through SQLAlchemy’s async engine with an explicit session per request.

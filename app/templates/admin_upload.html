@@ -13,6 +13,10 @@
             <p>Add or replace images available to attendees.</p>
         </header>
 
+        <nav class="breadcrumbs">
+            <a href="{{ url_for('admin_index') }}">&larr; Back to dashboard</a>
+        </nav>
+
         {% if success %}
             <div class="alert success" role="status">
                 {{ success }}

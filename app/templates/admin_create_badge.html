@@ -13,6 +13,10 @@
             <p>Register a badge so attendees can look it up by unique ID.</p>
         </header>
 
+        <nav class="breadcrumbs">
+            <a href="{{ url_for('admin_index') }}">&larr; Back to dashboard</a>
+        </nav>
+
         {% if success %}
             <div class="alert success" role="status">
                 {{ success }}
@@ -35,7 +39,7 @@
             </label>
             <label class="field">
                 <span>MAC Address</span>
-                <input type="text" name="mac_address" required value="{{ form.mac_address }}" maxlength="{{ MAX_BADGE_MAC_ADDRESS_LENGTH }}" placeholder="AA:BB:CC:DD:EE:FF:GG:HH">
+                <input type="text" name="mac_address" required value="{{ form.mac_address }}" maxlength="{{ MAX_BADGE_MAC_ADDRESS_LENGTH }}" placeholder="AA:BB:CC:DD:EE:FF:00:111">
             </label>
             <button type="submit" class="primary">Create Badge</button>
         </form>
@@ -143,7 +147,7 @@
                                             </label>
                                             <label class="field compact">
                                                 <span class="visually-hidden">MAC for {{ badge.unique_id }}</span>
-                                                <input type="text" name="mac_address" value="{{ badge.mac_address or '' }}" required maxlength="{{ MAX_BADGE_MAC_ADDRESS_LENGTH }}" placeholder="AA:BB:CC:DD:EE:FF:GG:HH">
+                                                <input type="text" name="mac_address" value="{{ badge.mac_address or '' }}" required maxlength="{{ MAX_BADGE_MAC_ADDRESS_LENGTH }}" placeholder="AA:BB:CC:DD:EE:FF:00:111">
                                             </label>
                                             <button type="submit" class="secondary">Update</button>
                                         </form>

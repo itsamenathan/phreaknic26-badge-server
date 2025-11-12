@@ -1,12 +1,19 @@
 from __future__ import annotations
 
+import logging
 import re
-from typing import Optional, Union
+from pathlib import Path
+from typing import List, Optional, Tuple, Union
+
+from .constants import DEFAULT_IMAGE_FONT, FONT_FILE_EXTENSIONS
 
 _MAC_CLEAN_RE = re.compile(r"[^0-9A-Fa-f]")
 _EXPECTED_MAC_BYTES = 8
 _EXPECTED_MAC_HEX_LENGTH = _EXPECTED_MAC_BYTES * 2
 _MAX_MAC_INT = (1 << (_EXPECTED_MAC_BYTES * 8)) - 1
+_FONTS_DIR = (Path(__file__).resolve().parent / "static" / "fonts").resolve()
+
+logger = logging.getLogger(__name__)
 
 
 def _bytes_to_hex(mac_bytes: bytes) -> str:
@@ -15,7 +22,7 @@ def _bytes_to_hex(mac_bytes: bytes) -> str:
 
 def normalise_mac_address(value: Union[str, bytes, bytearray, int]) -> Optional[str]:
     """
-    Return MAC address in AA:BB:CC:DD:EE:FF:GG:HH format or None if invalid.
+    Return MAC address in AA:BB:CC:DD:EE:FF:00:111 format or None if invalid.
 
     Accepted inputs:
       * Strings in any common separator style (AA:BB:..., AA-BB-..., AABBCC..., etc.)
@@ -61,3 +68,28 @@ def normalise_mac_address(value: Union[str, bytes, bytearray, int]) -> Optional[
     return ":".join(
         cleaned[i : i + 2] for i in range(0, _EXPECTED_MAC_HEX_LENGTH, 2)
     )
+
+
+def load_font_choices() -> Tuple[List[str], Optional[str]]:
+    try:
+        fonts_path = _FONTS_DIR
+        choices: List[str] = []
+        if fonts_path.exists():
+            entries = {
+                entry.name
+                for entry in fonts_path.iterdir()
+                if (
+                    entry.is_file()
+                    and not entry.name.startswith(".")
+                    and entry.suffix.lower() in FONT_FILE_EXTENSIONS
+                )
+            }
+            choices = sorted(entries, key=str.lower)
+        if not choices:
+            choices = [DEFAULT_IMAGE_FONT]
+        if DEFAULT_IMAGE_FONT not in choices:
+            choices.insert(0, DEFAULT_IMAGE_FONT)
+        return choices, None
+    except OSError:
+        logger.exception("Failed to read font directory %s", _FONTS_DIR)
+        return [DEFAULT_IMAGE_FONT], "We couldn't load the font options. Please refresh the page."

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import base64
 import logging
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlencode
 
@@ -21,12 +20,11 @@ from ..constants import (
     MAX_IMAGE_LABEL_LENGTH,
     MAX_IMAGE_SECRET_CODE_LENGTH,
     IMAGE_COLOR_CHOICES,
-    FONT_FILE_EXTENSIONS,
 )
 from ..db import db
 from ..dependencies import templates, verify_credentials
 from ..logs import get_recent_logs
-from ..utils import normalise_mac_address
+from ..utils import load_font_choices, normalise_mac_address
 
 
 router = APIRouter(
@@ -36,32 +34,6 @@ router = APIRouter(
 )
 
 logger = logging.getLogger(__name__)
-FONTS_DIR = (Path(__file__).resolve().parent.parent / "static" / "fonts").resolve()
-
-def _load_font_choices() -> Tuple[List[str], Optional[str]]:
-    try:
-        fonts_path = FONTS_DIR
-        choices = []
-        if fonts_path.exists():
-            entries = {
-                entry.name
-                for entry in fonts_path.iterdir()
-                if (
-                    entry.is_file()
-                    and not entry.name.startswith(".")
-                    and entry.suffix.lower() in FONT_FILE_EXTENSIONS
-                )
-            }
-            choices = sorted(entries, key=str.lower)
-        if not choices:
-            choices = [DEFAULT_IMAGE_FONT]
-        if DEFAULT_IMAGE_FONT not in choices:
-            choices.insert(0, DEFAULT_IMAGE_FONT)
-        return choices, None
-    except OSError:
-        logger.exception("Failed to read font directory %s", FONTS_DIR)
-        return [DEFAULT_IMAGE_FONT], "We couldn't load the font options. Please refresh the page."
-
 
 async def _load_available_images() -> Tuple[List[Dict[str, Optional[str]]], Optional[str]]:
     try:
@@ -102,7 +74,7 @@ async def _render_admin_upload(
     except (TypeError, ValueError):
         full_form_data["display_order"] = next_display_order
     full_form_data["requires_secret_code"] = bool(full_form_data["requires_secret_code"])
-    font_choices, font_error = _load_font_choices()
+    font_choices, font_error = load_font_choices()
     if full_form_data["image_font"] not in font_choices:
         full_form_data["image_font"] = font_choices[0]
     error_messages = [msg for msg in (error, load_error, font_error) if msg]
@@ -274,7 +246,7 @@ async def admin_images_upload(
         "display_order": display_order_value,
     }
 
-    font_choices, font_error = _load_font_choices()
+    font_choices, font_error = load_font_choices()
 
     if not image_label:
         return await _render_admin_upload(
@@ -416,7 +388,7 @@ async def admin_images_update(
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
-    font_choices, font_error = _load_font_choices()
+    font_choices, font_error = load_font_choices()
 
     if not image_label:
         return await _render_admin_upload(
@@ -658,7 +630,7 @@ async def admin_badges_submit(
             request,
             form_data,
             success=None,
-            error="Please enter a valid MAC address (e.g. AA:BB:CC:DD:EE:FF:GG:HH).",
+            error="Please enter a valid MAC address (e.g. AA:BB:CC:DD:EE:FF:00:111).",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
     form_data["mac_address"] = normalised_mac

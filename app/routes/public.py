@@ -699,7 +699,7 @@ async def get_badge_by_mac_api(mac_address: str) -> Response:
     if normalised is None:
         return JSONResponse(
             {
-                "detail": "Invalid MAC address. Use format AA:BB:CC:DD:EE:FF:GG:HH."
+                "detail": "Invalid MAC address. Use format AA:BB:CC:DD:EE:FF:00:111."
             },
             status_code=status.HTTP_400_BAD_REQUEST,
         )
