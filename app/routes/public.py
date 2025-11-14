@@ -17,6 +17,7 @@ from ..dependencies import templates
 from ..constants import (
     DEFAULT_BADGE_FONT_SIZE,
     DEFAULT_BADGE_TEXT_LOCATION,
+    DEFAULT_BADGE_TEXT_ROTATION,
     DEFAULT_IMAGE_COLOR,
     DEFAULT_IMAGE_FONT,
     MAX_BADGE_FONT_SIZE,
@@ -25,6 +26,8 @@ from ..constants import (
     MAX_IMAGE_LABEL_LENGTH,
     MAX_IMAGE_SECRET_CODE_LENGTH,
     MIN_BADGE_FONT_SIZE,
+    MIN_BADGE_TEXT_ROTATION,
+    MAX_BADGE_TEXT_ROTATION,
 )
 from ..services.badge_renderer import render_badge_image
 from ..services.firmware_builder import (
@@ -56,6 +59,7 @@ def _build_selection_form(
     image_label: Optional[str] = None,
     text_x: Optional[Any] = None,
     text_y: Optional[Any] = None,
+    text_rotation: Optional[Any] = None,
     display_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     form_data: Dict[str, Any] = {
@@ -63,6 +67,7 @@ def _build_selection_form(
         "image_label": "",
         "text_x": "",
         "text_y": "",
+        "text_rotation": DEFAULT_BADGE_TEXT_ROTATION,
         "display_name": "",
     }
 
@@ -94,6 +99,16 @@ def _build_selection_form(
             parsed_y = None
         else:
             form_data["text_y"] = str(max(parsed_y, 0))
+
+    if text_rotation not in (None, ""):
+        try:
+            parsed_rotation = int(float(text_rotation))
+        except (TypeError, ValueError):
+            parsed_rotation = DEFAULT_BADGE_TEXT_ROTATION
+        form_data["text_rotation"] = max(
+            MIN_BADGE_TEXT_ROTATION,
+            min(MAX_BADGE_TEXT_ROTATION, parsed_rotation),
+        )
 
     cleaned_display_name = _clean_display_name(display_name)
     if cleaned_display_name:
@@ -136,6 +151,12 @@ def _render_selection_page(
             form_data["text_x"] = str(max(int(saved_x), 0))
         if saved_y is not None:
             form_data["text_y"] = str(max(int(saved_y), 0))
+        saved_rotation = profile.get("selected_text_rotation")
+        if isinstance(saved_rotation, int):
+            form_data["text_rotation"] = max(
+                MIN_BADGE_TEXT_ROTATION,
+                min(MAX_BADGE_TEXT_ROTATION, saved_rotation),
+            )
     return templates.TemplateResponse(
         "selection.html",
         {
@@ -148,6 +169,9 @@ def _render_selection_page(
             "MAX_BADGE_FONT_SIZE": MAX_BADGE_FONT_SIZE,
             "MAX_BADGE_NAME_LENGTH": MAX_BADGE_NAME_LENGTH,
             "MAX_IMAGE_SECRET_CODE_LENGTH": MAX_IMAGE_SECRET_CODE_LENGTH,
+            "MIN_BADGE_TEXT_ROTATION": MIN_BADGE_TEXT_ROTATION,
+            "MAX_BADGE_TEXT_ROTATION": MAX_BADGE_TEXT_ROTATION,
+            "DEFAULT_BADGE_TEXT_ROTATION": DEFAULT_BADGE_TEXT_ROTATION,
             "auto_download": auto_download,
         },
         status_code=status_code,
@@ -287,6 +311,7 @@ async def post_badge(
     font_size: int = Form(..., ge=MIN_BADGE_FONT_SIZE, le=MAX_BADGE_FONT_SIZE),
     text_x: Optional[str] = Form(None),
     text_y: Optional[str] = Form(None),
+    text_rotation: Optional[str] = Form(str(DEFAULT_BADGE_TEXT_ROTATION)),
     override_name: Optional[str] = Form(None, max_length=MAX_BADGE_NAME_LENGTH),
     download_after_save: Optional[str] = Form("0"),
 ) -> Response:
@@ -307,6 +332,7 @@ async def post_badge(
         image_label=image_label,
         text_x=text_x,
         text_y=text_y,
+        text_rotation=text_rotation,
         display_name=display_name,
     )
     download_requested = (download_after_save or "0") == "1"
@@ -318,6 +344,18 @@ async def post_badge(
             return max(0, int(float(raw_value)))
         except (TypeError, ValueError):
             return None
+
+    def _parse_rotation(raw_value: Optional[str]) -> int:
+        if raw_value in (None, ""):
+            return DEFAULT_BADGE_TEXT_ROTATION
+        try:
+            parsed = int(float(raw_value))
+        except (TypeError, ValueError):
+            return DEFAULT_BADGE_TEXT_ROTATION
+        return max(
+            MIN_BADGE_TEXT_ROTATION,
+            min(MAX_BADGE_TEXT_ROTATION, parsed),
+        )
 
     try:
         profile = await db.fetch_profile(unique_id)
@@ -343,6 +381,7 @@ async def post_badge(
 
     text_x_value = _parse_coordinate(text_x)
     text_y_value = _parse_coordinate(text_y)
+    rotation_value = _parse_rotation(text_rotation)
     location_token = DEFAULT_BADGE_TEXT_LOCATION
     if text_x_value is not None and text_y_value is not None:
         location_token = f"{text_x_value},{text_y_value}"
@@ -351,6 +390,7 @@ async def post_badge(
             image_label=image_label,
             text_x=text_x_value,
             text_y=text_y_value,
+            text_rotation=rotation_value,
             display_name=display_name,
         )
 
@@ -466,6 +506,7 @@ async def post_badge(
             font_size=form_state["font_size"],
             text_color=selected_image.get("image_color") or DEFAULT_IMAGE_COLOR,
             text_location=location_token,
+            text_rotation_degrees=rotation_value,
         )
     except Exception:
         logger.exception("Failed to personalise image '%s' for %s", image_label, unique_id)
@@ -504,6 +545,7 @@ async def post_badge(
             font_size=form_state["font_size"],
             text_x=text_x_value,
             text_y=text_y_value,
+            text_rotation=rotation_value,
             firmware_base64=firmware_base64,
             firmware_hash=firmware_hash,
         )

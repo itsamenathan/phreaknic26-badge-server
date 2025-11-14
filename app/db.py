@@ -14,7 +14,11 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from .config import Settings, get_settings
-from .constants import DEFAULT_IMAGE_COLOR, DEFAULT_IMAGE_FONT
+from .constants import (
+    DEFAULT_IMAGE_COLOR,
+    DEFAULT_IMAGE_FONT,
+    DEFAULT_BADGE_TEXT_ROTATION,
+)
 from .models import AvailableImage, Badge, BadgeImage, BadgeUnlockedImage, Base
 
 
@@ -151,6 +155,12 @@ class Database:
                     }
                 )
 
+            rotation = (
+                badge.selected_text_rotation
+                if badge.selected_text_rotation is not None
+                else DEFAULT_BADGE_TEXT_ROTATION
+            )
+
             return {
                 "unique_id": badge.unique_id,
                 "name": badge.name,
@@ -165,6 +175,7 @@ class Database:
                 "selected_font_size": badge.selected_font_size,
                 "selected_text_x": badge.selected_text_x,
                 "selected_text_y": badge.selected_text_y,
+                "selected_text_rotation": rotation,
                 "images": images,
             }
 
@@ -175,6 +186,12 @@ class Database:
             if badge is None:
                 return None
 
+            rotation = (
+                badge.selected_text_rotation
+                if badge.selected_text_rotation is not None
+                else DEFAULT_BADGE_TEXT_ROTATION
+            )
+
             return {
                 "unique_id": badge.unique_id,
                 "name": badge.name,
@@ -189,6 +206,7 @@ class Database:
                 "selected_font_size": badge.selected_font_size,
                 "selected_text_x": badge.selected_text_x,
                 "selected_text_y": badge.selected_text_y,
+                "selected_text_rotation": rotation,
             }
 
     async def get_badge_by_unique_id(
@@ -201,6 +219,12 @@ class Database:
             if badge is None:
                 return None
 
+            rotation = (
+                badge.selected_text_rotation
+                if badge.selected_text_rotation is not None
+                else DEFAULT_BADGE_TEXT_ROTATION
+            )
+
             return {
                 "unique_id": badge.unique_id,
                 "name": badge.name,
@@ -215,6 +239,7 @@ class Database:
                 "selected_font_size": badge.selected_font_size,
                 "selected_text_x": badge.selected_text_x,
                 "selected_text_y": badge.selected_text_y,
+                "selected_text_rotation": rotation,
             }
 
     async def save_badge_render(
@@ -229,6 +254,7 @@ class Database:
         font_size: Optional[int],
         text_x: Optional[int],
         text_y: Optional[int],
+        text_rotation: Optional[int],
         firmware_base64: str,
         firmware_hash: str,
     ) -> bool:
@@ -246,6 +272,7 @@ class Database:
             badge.selected_font_size = font_size
             badge.selected_text_x = text_x
             badge.selected_text_y = text_y
+            badge.selected_text_rotation = text_rotation
             badge.firmware_base64 = firmware_base64
             badge.firmware_hash = firmware_hash
         return True
@@ -487,6 +514,11 @@ class Database:
             image_data_uri = None
             if image_base64:
                 image_data_uri = f"data:{image_mime};base64,{image_base64}"
+            rotation = (
+                badge.selected_text_rotation
+                if badge.selected_text_rotation is not None
+                else DEFAULT_BADGE_TEXT_ROTATION
+            )
             results.append(
                 {
                     "unique_id": badge.unique_id,
@@ -502,6 +534,7 @@ class Database:
                     "selected_font_size": badge.selected_font_size,
                     "selected_text_x": badge.selected_text_x,
                     "selected_text_y": badge.selected_text_y,
+                    "selected_text_rotation": rotation,
                     "selected_image_data_uri": image_data_uri,
                 }
             )

@@ -11,8 +11,11 @@ from ..constants import (
     BADGE_TEXT_LOCATIONS,
     DEFAULT_BADGE_FONT_SIZE,
     DEFAULT_BADGE_TEXT_LOCATION,
+    DEFAULT_BADGE_TEXT_ROTATION,
     DEFAULT_IMAGE_COLOR,
     DEFAULT_IMAGE_FONT,
+    MAX_BADGE_TEXT_ROTATION,
+    MIN_BADGE_TEXT_ROTATION,
 )
 
 FONTS_DIR = Path(__file__).resolve().parent.parent / "static" / "fonts"
@@ -71,6 +74,7 @@ def render_badge_image(
     font_size: int = DEFAULT_BADGE_FONT_SIZE,
     text_color: str = DEFAULT_IMAGE_COLOR,
     text_location: str = DEFAULT_BADGE_TEXT_LOCATION,
+    text_rotation_degrees: int = DEFAULT_BADGE_TEXT_ROTATION,
 ) -> str:
     image_bytes = base64.b64decode(image_base64)
     with Image.open(BytesIO(image_bytes)) as original_img:
@@ -95,19 +99,6 @@ def render_badge_image(
         text_height = bottom - top
 
         explicit_coordinates = "," in text_location.strip()
-        x, y = _calculate_position(
-            text_location,
-            image_size=img.size,
-            text_size=(text_width, text_height),
-        )
-        if explicit_coordinates:
-            x = max(0, x)
-            y = max(0, y)
-        else:
-            max_x = max(img.width - text_width, 0)
-            max_y = max(img.height - text_height, 0)
-            x = max(0, min(max_x, x))
-            y = max(0, min(max_y, y))
 
         fill = (0, 0, 0, 255) if text_color.lower() == "black" else (255, 255, 255, 255)
 
@@ -128,7 +119,36 @@ def render_badge_image(
         color_image = Image.new("RGBA", mask_image.size, fill)
         color_image.putalpha(mask_alpha)
 
-        img.alpha_composite(color_image, dest=(x, y))
+        rotation_value = text_rotation_degrees or DEFAULT_BADGE_TEXT_ROTATION
+        rotation_value = max(
+            MIN_BADGE_TEXT_ROTATION,
+            min(MAX_BADGE_TEXT_ROTATION, int(rotation_value)),
+        )
+        text_image = color_image
+        if rotation_value:
+            text_image = color_image.rotate(
+                -rotation_value,
+                expand=True,
+                resample=Image.BICUBIC,
+                fillcolor=(0, 0, 0, 0),
+            )
+        text_width, text_height = text_image.size
+
+        x, y = _calculate_position(
+            text_location,
+            image_size=img.size,
+            text_size=(text_width, text_height),
+        )
+        if explicit_coordinates:
+            x = max(0, x)
+            y = max(0, y)
+        else:
+            max_x = max(img.width - text_width, 0)
+            max_y = max(img.height - text_height, 0)
+            x = max(0, min(max_x, x))
+            y = max(0, min(max_y, y))
+
+        img.alpha_composite(text_image, dest=(x, y))
 
         output = BytesIO()
         final_image = img

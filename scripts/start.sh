@@ -29,6 +29,9 @@ done
 
 echo "Database is ready."
 
+echo "Checking for pending database migrations..."
+"$PROJECT_ROOT/scripts/migrate-if-needed.sh"
+
 APP_CMD=()
 RELOAD_ARGS=(
     --reload

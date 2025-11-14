@@ -36,6 +36,7 @@ class Badge(Base):
     selected_font_size: Mapped[Optional[int]] = mapped_column(nullable=True)
     selected_text_x: Mapped[Optional[int]] = mapped_column(nullable=True)
     selected_text_y: Mapped[Optional[int]] = mapped_column(nullable=True)
+    selected_text_rotation: Mapped[Optional[int]] = mapped_column(nullable=True)
 
     images: Mapped[List["BadgeImage"]] = relationship(
         back_populates="badge",

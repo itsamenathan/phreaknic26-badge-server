@@ -77,6 +77,23 @@
                             <span class="font-size-unit">px</span>
                         </div>
                     </label>
+                    <label class="field control-card">
+                        <span>Tilt</span>
+                        <div class="font-size-control">
+                            <input
+                                type="range"
+                                name="text_rotation"
+                                id="rotation-input"
+                                min="{{ MIN_BADGE_TEXT_ROTATION }}"
+                                max="{{ MAX_BADGE_TEXT_ROTATION }}"
+                                value="{{ form.text_rotation }}"
+                                step="1"
+                                disabled
+                            >
+                            <span class="font-size-output" id="rotation-output">{{ form.text_rotation }}</span>
+                            <span class="font-size-unit">deg</span>
+                        </div>
+                    </label>
                 </div>
                 <div class="gallery gallery--selection">
                     {% for image in profile.images %}
@@ -196,6 +213,8 @@
             const textYInput = document.getElementById('text-y');
             const fontSizeInput = document.getElementById('font-size-input');
             const fontSizeOutput = document.getElementById('font-size-output');
+            const rotationInput = document.getElementById('rotation-input');
+            const rotationOutput = document.getElementById('rotation-output');
             const sendButton = document.getElementById('send-button');
             const downloadLink = document.getElementById('download-firmware-link');
             const downloadAfterSaveInput = document.getElementById('download-after-save');
@@ -220,6 +239,7 @@
             const PREVIEW_MAX_WIDTH = 960;
             const PREVIEW_SCALE = 4;
             const FONT_BASE_PATH = "{{ url_for('static', path='fonts/') }}";
+            const DEFAULT_ROTATION = {{ DEFAULT_BADGE_TEXT_ROTATION | tojson }};
             const fontCache = new Map();
 
             let autoDownloadPending = {{ "true" if auto_download else "false" }};
@@ -234,9 +254,16 @@
             let pendingColor = 'black';
             let currentFontFamily = '';
             let currentFontColor = '#000';
+            let currentRotation = rotationInput ? parseInt(rotationInput.value, 10) || DEFAULT_ROTATION : DEFAULT_ROTATION;
 
             function updateFontSizeDisplay() {
                 fontSizeOutput.textContent = fontSizeInput.value;
+            }
+
+            function updateRotationDisplay() {
+                if (rotationInput && rotationOutput) {
+                    rotationOutput.textContent = rotationInput.value;
+                }
             }
 
             if (downloadAfterSaveInput) {
@@ -298,6 +325,9 @@
             function setEditorEnabled(enabled) {
                 badgeEditor.classList.toggle('badge-editor--inactive', !enabled);
                 fontSizeInput.disabled = !enabled;
+                if (rotationInput) {
+                    rotationInput.disabled = !enabled;
+                }
                 overlayCanvas.style.pointerEvents = enabled ? 'auto' : 'none';
                 if (!enabled && !selectionInput.value) {
                     showPlaceholder();
@@ -469,16 +499,24 @@
                 const leftBearing = metrics.actualBoundingBoxLeft;
                 const ascent = metrics.actualBoundingBoxAscent;
 
-                const displayWidth = Math.max(1, Math.ceil(width));
-                const displayHeight = Math.max(1, Math.ceil(height));
+                const baseWidth = Math.max(1, Math.ceil(width));
+                const baseHeight = Math.max(1, Math.ceil(height));
+                const rotationRadians = (currentRotation * Math.PI) / 180;
+                const absCos = Math.abs(Math.cos(rotationRadians));
+                const absSin = Math.abs(Math.sin(rotationRadians));
+                const rotatedWidth = Math.max(1, Math.ceil(baseWidth * absCos + baseHeight * absSin));
+                const rotatedHeight = Math.max(1, Math.ceil(baseWidth * absSin + baseHeight * absCos));
 
-                overlayCanvas.width = Math.max(1, Math.ceil(displayWidth * dpr));
-                overlayCanvas.height = Math.max(1, Math.ceil(displayHeight * dpr));
-                overlayCanvas.style.width = `${displayWidth}px`;
-                overlayCanvas.style.height = `${displayHeight}px`;
+                overlayCanvas.width = Math.max(1, Math.ceil(rotatedWidth * dpr));
+                overlayCanvas.height = Math.max(1, Math.ceil(rotatedHeight * dpr));
+                overlayCanvas.style.width = `${rotatedWidth}px`;
+                overlayCanvas.style.height = `${rotatedHeight}px`;
 
                 overlayCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-                overlayCtx.clearRect(0, 0, displayWidth, displayHeight);
+                overlayCtx.clearRect(0, 0, rotatedWidth, rotatedHeight);
+                overlayCtx.translate(rotatedWidth / 2, rotatedHeight / 2);
+                overlayCtx.rotate(rotationRadians);
+                overlayCtx.translate(-baseWidth / 2, -baseHeight / 2);
                 overlayCtx.font = `${displayFontSize}px ${fontFamily}`;
                 overlayCtx.textBaseline = 'alphabetic';
                 overlayCtx.fillStyle = currentFontColor;
@@ -645,6 +683,19 @@
                 applyFontSize();
             });
 
+            if (rotationInput) {
+                rotationInput.addEventListener('input', () => {
+                    if (rotationInput.disabled) {
+                        return;
+                    }
+                    const parsed = parseInt(rotationInput.value, 10);
+                    currentRotation = Number.isFinite(parsed) ? parsed : DEFAULT_ROTATION;
+                    updateRotationDisplay();
+                    redrawOverlay();
+                    applyOverlayPosition();
+                });
+            }
+
             async function setActiveButton(button, shouldResetPosition) {
                 if (!button || button.dataset.locked === 'true') {
                     if (button) {
@@ -662,6 +713,11 @@
                 if (shouldResetPosition) {
                     textXInput.value = '';
                     textYInput.value = '';
+                    if (rotationInput) {
+                        rotationInput.value = String(DEFAULT_ROTATION);
+                        currentRotation = DEFAULT_ROTATION;
+                        updateRotationDisplay();
+                    }
                 }
                 setEditorEnabled(false);
                 hidePlaceholder();
@@ -755,6 +811,7 @@
             }
 
             updateFontSizeDisplay();
+            updateRotationDisplay();
             updateLockPanelVisibility();
 
             if (selectionInput.value) {
