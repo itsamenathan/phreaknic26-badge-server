@@ -725,3 +725,42 @@ async def get_badge_by_mac_api(mac_address: str) -> Response:
             "firmware_hash": badge.get("firmware_hash"),
         }
     )
+
+
+@router.get("/api/badges/id/{unique_id}", response_class=JSONResponse)
+async def get_badge_by_id_api(unique_id: str) -> Response:
+    unique_id = (unique_id or "").strip()
+    if not unique_id:
+        return JSONResponse(
+            {"detail": "Badge ID is required."},
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    if len(unique_id) > MAX_BADGE_ID_LENGTH:
+        return JSONResponse(
+            {
+                "detail": f"Badge ID must be {MAX_BADGE_ID_LENGTH} characters or fewer."
+            },
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        badge = await db.get_badge_by_unique_id(unique_id)
+    except SQLAlchemyError:
+        logger.exception("Failed to look up badge %s", unique_id)
+        return JSONResponse(
+            {"detail": "Failed to look up that badge. Please try again."},
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+    if badge is None:
+        return JSONResponse(
+            {"detail": "Badge not found."},
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+
+    return JSONResponse(
+        {
+            "firmware_base64": badge.get("firmware_base64"),
+            "firmware_hash": badge.get("firmware_hash"),
+        }
+    )

@@ -191,6 +191,32 @@ class Database:
                 "selected_text_y": badge.selected_text_y,
             }
 
+    async def get_badge_by_unique_id(
+        self,
+        unique_id: str,
+    ) -> Optional[Dict[str, Any]]:
+        async with self.session() as session:
+            stmt = select(Badge).where(Badge.unique_id == unique_id)
+            badge = await session.scalar(stmt)
+            if badge is None:
+                return None
+
+            return {
+                "unique_id": badge.unique_id,
+                "name": badge.name,
+                "mac_address": badge.mac_address,
+                "firmware_base64": badge.firmware_base64,
+                "firmware_hash": badge.firmware_hash,
+                "selected_image_label": badge.selected_image_label,
+                "selected_image_base64": badge.selected_image_base64,
+                "selected_image_mime_type": badge.selected_image_mime_type,
+                "selected_image_color": badge.selected_image_color,
+                "selected_image_font": badge.selected_image_font,
+                "selected_font_size": badge.selected_font_size,
+                "selected_text_x": badge.selected_text_x,
+                "selected_text_y": badge.selected_text_y,
+            }
+
     async def save_badge_render(
         self,
         unique_id: str,
