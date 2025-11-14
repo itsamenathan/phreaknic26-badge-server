@@ -472,9 +472,11 @@ class Database:
             await session.delete(badge)
         return True
 
-    async def list_badges(self, limit: int = 100) -> List[Dict[str, Any]]:
+    async def list_badges(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
         async with self.session() as session:
-            stmt = select(Badge).order_by(Badge.unique_id.asc()).limit(limit)
+            stmt = select(Badge).order_by(Badge.unique_id.asc())
+            if limit is not None:
+                stmt = stmt.limit(limit)
             rows = await session.scalars(stmt)
             badges = rows.all()
 
