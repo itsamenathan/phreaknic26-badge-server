@@ -4,6 +4,7 @@ import logging
 
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
+from fastapi.middleware.cors import CORSMiddleware
 from starlette.staticfiles import StaticFiles
 
 from .config import get_settings
@@ -17,6 +18,13 @@ logger = logging.getLogger(__name__)
 install_log_buffer_handler()
 
 app = FastAPI(title="PhreakNIC 26 Badge Server", default_response_class=HTMLResponse)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 static_dir = BASE_DIR / "static"
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
