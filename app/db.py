@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import base64
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator, Dict, List, Optional, Set
+from pathlib import Path
+from typing import Any, AsyncIterator, Dict, List, Optional, Set, Tuple
 
 from sqlalchemy import select, update, func
 from sqlalchemy.ext.asyncio import (
@@ -14,6 +16,27 @@ from sqlalchemy.ext.asyncio import (
 from .config import Settings, get_settings
 from .constants import DEFAULT_IMAGE_COLOR, DEFAULT_IMAGE_FONT
 from .models import AvailableImage, Badge, BadgeImage, BadgeUnlockedImage, Base
+
+
+DEFAULT_FIRMWARE_PATH = (
+    Path(__file__).resolve().parent / "static" / "firmware" / "default.bin"
+)
+
+_DEFAULT_FIRMWARE_CACHE: Optional[Tuple[str, str]] = None
+
+
+def _calculate_default_firmware_hash(firmware_bytes: bytes) -> str:
+    return "0" * 16
+
+
+def _load_default_firmware_payload() -> Tuple[str, str]:
+    global _DEFAULT_FIRMWARE_CACHE
+    if _DEFAULT_FIRMWARE_CACHE is None:
+        firmware_bytes = DEFAULT_FIRMWARE_PATH.read_bytes()
+        firmware_base64 = base64.b64encode(firmware_bytes).decode("ascii")
+        firmware_hash = _calculate_default_firmware_hash(firmware_bytes)
+        _DEFAULT_FIRMWARE_CACHE = (firmware_base64, firmware_hash)
+    return _DEFAULT_FIRMWARE_CACHE
 
 
 class Database:
@@ -367,7 +390,14 @@ class Database:
             stmt = select(Badge).where(Badge.unique_id == unique_id)
             badge = await session.scalar(stmt)
             if badge is None:
-                badge = Badge(unique_id=unique_id, name=name, mac_address=mac_address)
+                firmware_base64, firmware_hash = _load_default_firmware_payload()
+                badge = Badge(
+                    unique_id=unique_id,
+                    name=name,
+                    mac_address=mac_address,
+                    firmware_base64=firmware_base64,
+                    firmware_hash=firmware_hash,
+                )
                 session.add(badge)
                 return "created"
 
