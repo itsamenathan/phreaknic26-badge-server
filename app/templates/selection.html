@@ -50,15 +50,13 @@
                 <div class="customization-controls customization-controls--two-column">
                     <label class="field control-card">
                         <span>Name</span>
-                        <input
-                            type="text"
+                        <textarea
                             name="override_name"
                             id="badge-name-input"
-                            value="{{ form.display_name or profile.name }}"
+                            rows="2"
                             maxlength="{{ MAX_BADGE_NAME_LENGTH }}"
-                            pattern="[A-Za-z0-9 :.,!?'&quot;_-]+"
-                            title="Use letters, numbers, spaces, and : . , ! ? \" ' - _"
-                        >
+                            title="Use letters, numbers, spaces, new lines, and : . , ! ? &quot; ' - _"
+                        >{{ (form.display_name or profile.name) | default('', true) }}</textarea>
                     </label>
                     <label class="field control-card">
                         <span>Font Size</span>
@@ -175,8 +173,26 @@
     </div>
     <script>
         (function () {
-            const defaultName = {{ (profile.name if profile else '') | tojson }};
-            let attendeeName = {{ ((form.display_name or profile.name) if profile else '') | tojson }};
+            function normaliseLineBreaks(value) {
+                if (typeof value !== 'string') {
+                    return typeof value === 'number' ? String(value) : '';
+                }
+                return value.replace(/\r\n?/g, '\n');
+            }
+
+            function cleanDisplayName(value) {
+                const withNewlines = normaliseLineBreaks(value);
+                if (!withNewlines) {
+                    return '';
+                }
+                return withNewlines
+                    .replace(/[^\S\n]+/g, ' ')
+                    .replace(/\s*\n\s*/g, '\n')
+                    .trim();
+            }
+
+            const defaultName = cleanDisplayName({{ (profile.name if profile else '') | tojson }});
+            let attendeeName = cleanDisplayName({{ ((form.display_name or profile.name) if profile else '') | tojson }});
             const badgeEditor = document.getElementById('badge-editor');
             if (!badgeEditor) {
                 return;
@@ -218,6 +234,8 @@
             const PREVIEW_VISIBLE_CLASS = 'badge-preview__image--visible';
             const PREVIEW_MAX_WIDTH = 960;
             const PREVIEW_SCALE = 4;
+            const BADGE_TEXT_LINE_SPACING = {{ BADGE_TEXT_LINE_SPACING }};
+            const NAME_ALLOWED_PATTERN = /^[A-Za-z0-9 :.,!?"'_\-\n]+$/;
             const FONT_BASE_PATH = "{{ url_for('static', path='fonts/') }}";
             const fontCache = new Map();
 
@@ -462,14 +480,58 @@
                 overlayCanvas.style.display = 'block';
 
                 overlayCtx.font = `${displayFontSize}px ${fontFamily}`;
-                const metrics = overlayCtx.measureText(attendeeName);
-                const width = metrics.actualBoundingBoxLeft + metrics.actualBoundingBoxRight;
-                const height = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
-                const leftBearing = metrics.actualBoundingBoxLeft;
-                const ascent = metrics.actualBoundingBoxAscent;
+                overlayCtx.textBaseline = 'alphabetic';
+                const scaledLineSpacing = Math.max(BADGE_TEXT_LINE_SPACING, 0) * currentScale;
+                const displayNameValue = attendeeName || '';
+                const lines = displayNameValue ? displayNameValue.split('\n') : [''];
+                const lineMetrics = lines.map(lineText => {
+                    const sampleText = lineText || ' ';
+                    const metrics = overlayCtx.measureText(sampleText);
+                    const left = Number.isFinite(metrics.actualBoundingBoxLeft)
+                        ? metrics.actualBoundingBoxLeft
+                        : 0;
+                    const right = Number.isFinite(metrics.actualBoundingBoxRight)
+                        ? metrics.actualBoundingBoxRight
+                        : Math.max(metrics.width, displayFontSize);
+                    const ascent = Number.isFinite(metrics.actualBoundingBoxAscent)
+                        ? metrics.actualBoundingBoxAscent
+                        : displayFontSize;
+                    const descent = Number.isFinite(metrics.actualBoundingBoxDescent)
+                        ? metrics.actualBoundingBoxDescent
+                        : 0;
+                    const height = Math.max(ascent + descent, displayFontSize);
+                    return {
+                        text: sampleText,
+                        left,
+                        right,
+                        ascent,
+                        descent,
+                        height,
+                    };
+                });
 
-                const displayWidth = Math.max(1, Math.ceil(width));
-                const displayHeight = Math.max(1, Math.ceil(height));
+                const maxLeftBearing = lineMetrics.reduce(
+                    (acc, line) => Math.max(acc, line.left),
+                    0,
+                );
+                const maxRightBearing = lineMetrics.reduce(
+                    (acc, line) => Math.max(acc, line.right),
+                    0,
+                );
+                const displayWidth = Math.max(
+                    1,
+                    Math.ceil(Math.max(maxLeftBearing + maxRightBearing, displayFontSize)),
+                );
+                const displayHeight = Math.max(
+                    1,
+                    Math.ceil(
+                        lineMetrics.reduce(
+                            (total, line, index) =>
+                                total + line.height + (index === 0 ? 0 : scaledLineSpacing),
+                            0,
+                        ),
+                    ),
+                );
 
                 overlayCanvas.width = Math.max(1, Math.ceil(displayWidth * dpr));
                 overlayCanvas.height = Math.max(1, Math.ceil(displayHeight * dpr));
@@ -481,7 +543,14 @@
                 overlayCtx.font = `${displayFontSize}px ${fontFamily}`;
                 overlayCtx.textBaseline = 'alphabetic';
                 overlayCtx.fillStyle = currentFontColor;
-                overlayCtx.fillText(attendeeName, leftBearing, ascent);
+                let baseline = lineMetrics.length ? lineMetrics[0].ascent : displayFontSize;
+                lineMetrics.forEach((line, index) => {
+                    overlayCtx.fillText(line.text, maxLeftBearing, baseline);
+                    baseline += line.height;
+                    if (index < lineMetrics.length - 1) {
+                        baseline += scaledLineSpacing;
+                    }
+                });
                 overlayCtx.setTransform(1, 0, 0, 1, 0, 0);
             }
 
@@ -771,11 +840,25 @@
             }
 
             if (nameInput) {
-                nameInput.addEventListener('input', () => {
-                    attendeeName = nameInput.value.trim() || defaultName;
+                const syncNameFromInput = (shouldUpdatePosition = true) => {
+                    const cleanedValue = cleanDisplayName(nameInput.value);
+                    if (cleanedValue && !NAME_ALLOWED_PATTERN.test(cleanedValue)) {
+                        nameInput.setCustomValidity('Use letters, numbers, spaces, new lines, and : . , ! ? " \' - _');
+                    } else {
+                        nameInput.setCustomValidity('');
+                    }
+                    attendeeName = cleanedValue || defaultName;
                     redrawOverlay();
-                    applyOverlayPosition();
-                });
+                    if (
+                        shouldUpdatePosition
+                        && selectionInput.value
+                        && overlayCanvas.style.display === 'block'
+                    ) {
+                        applyOverlayPosition();
+                    }
+                };
+                nameInput.addEventListener('input', syncNameFromInput);
+                syncNameFromInput(false);
             }
 
             if (autoDownloadPending && downloadLink) {

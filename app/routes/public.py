@@ -15,6 +15,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from ..db import db
 from ..dependencies import templates
 from ..constants import (
+    BADGE_TEXT_LINE_SPACING,
     DEFAULT_BADGE_FONT_SIZE,
     DEFAULT_BADGE_TEXT_LOCATION,
     DEFAULT_IMAGE_COLOR,
@@ -37,13 +38,16 @@ from ..utils import normalise_mac_address
 router = APIRouter(tags=["public"])
 logger = logging.getLogger(__name__)
 
-_NAME_ALLOWED_RE = re.compile(r'^[A-Za-z0-9 :.,!?"\'_-]+$')
+_NAME_ALLOWED_RE = re.compile(r'^[A-Za-z0-9 :.,!?"\'_\-\n]+$')
 
 
 def _clean_display_name(value: Optional[str]) -> str:
     if value in (None, ""):
         return ""
-    return re.sub(r"\s+", " ", value).strip()
+    normalised = value.replace("\r\n", "\n").replace("\r", "\n")
+    normalised = re.sub(r"[^\S\n]+", " ", normalised)
+    normalised = re.sub(r"\s*\n\s*", "\n", normalised)
+    return normalised.strip()
 
 
 def _is_valid_display_name(value: str) -> bool:
@@ -148,6 +152,7 @@ def _render_selection_page(
             "MAX_BADGE_FONT_SIZE": MAX_BADGE_FONT_SIZE,
             "MAX_BADGE_NAME_LENGTH": MAX_BADGE_NAME_LENGTH,
             "MAX_IMAGE_SECRET_CODE_LENGTH": MAX_IMAGE_SECRET_CODE_LENGTH,
+            "BADGE_TEXT_LINE_SPACING": BADGE_TEXT_LINE_SPACING,
             "auto_download": auto_download,
         },
         status_code=status_code,
@@ -434,7 +439,7 @@ async def post_badge(
         return _render_selection_page(
             request,
             profile=profile,
-            error="Name can only include letters, numbers, spaces, and basic punctuation (:.,!?\"'-_)",
+            error="Name can only include letters, numbers, spaces, new lines, and basic punctuation (:.,!?\"'-_)",
             sent=False,
             form=form_state,
             status_code=status.HTTP_400_BAD_REQUEST,

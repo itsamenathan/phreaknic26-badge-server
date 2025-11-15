@@ -762,7 +762,8 @@ p {
 .field input[type="text"],
 .field input[type="file"],
 .field input[type="number"],
-.field input[type="search"] {
+.field input[type="search"],
+.field textarea {
     padding: 0.75rem 1rem;
     border-radius: 10px;
     border: 1px solid rgba(48, 255, 152, 0.28);
@@ -770,6 +771,12 @@ p {
     font: inherit;
     color: #c9ffe1;
     box-shadow: inset 0 0 12px rgba(15, 60, 25, 0.45);
+}
+
+.field textarea {
+    min-height: 3.5rem;
+    resize: vertical;
+    line-height: 1.3;
 }
 
 .field select {
@@ -791,7 +798,8 @@ p {
 .field input[type="text"]:focus,
 .field input[type="file"]:focus,
 .field input[type="number"]:focus,
-.field input[type="search"]:focus {
+.field input[type="search"]:focus,
+.field textarea:focus {
     outline: 2px solid rgba(48, 255, 152, 0.55);
     border-color: rgba(48, 255, 152, 0.6);
 }

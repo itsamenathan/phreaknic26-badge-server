@@ -8,6 +8,7 @@ from typing import Tuple
 from PIL import Image, ImageDraw, ImageFont
 
 from ..constants import (
+    BADGE_TEXT_LINE_SPACING,
     BADGE_TEXT_LOCATIONS,
     DEFAULT_BADGE_FONT_SIZE,
     DEFAULT_BADGE_TEXT_LOCATION,
@@ -89,7 +90,14 @@ def render_badge_image(
         except (OSError, ValueError) as exc:
             raise RuntimeError(f"Unable to load font '{font_filename}'.") from exc
 
-        bbox = truetype_font.getbbox(attendee_name)
+        metrics_image = Image.new("L", (1, 1), 0)
+        metrics_draw = ImageDraw.Draw(metrics_image)
+        bbox = metrics_draw.multiline_textbbox(
+            (0, 0),
+            attendee_name,
+            font=truetype_font,
+            spacing=BADGE_TEXT_LINE_SPACING,
+        )
         left, top, right, bottom = bbox
         text_width = right - left
         text_height = bottom - top
@@ -116,11 +124,12 @@ def render_badge_image(
         mask_height = max(text_height, 1)
         mask_image = Image.new("1", (mask_width, mask_height), 0)
         mask_draw = ImageDraw.Draw(mask_image)
-        mask_draw.text(
+        mask_draw.multiline_text(
             (-left, -top),
             attendee_name,
             fill=1,
             font=truetype_font,
+            spacing=BADGE_TEXT_LINE_SPACING,
         )
 
         mask_alpha = mask_image.convert("L")
