@@ -170,7 +170,6 @@
                 <li>Your badge should update with your image.</li>
                 <li>If you encounter issues, ask a staff member for assistance.</li>
             </ol>
-            <p class="popover-hint">Hint: Keep an eye out for secret codes around the con to unlock even more images.</p
             <button type="button" class="popover-close" id="flash-instructions-close">Close</button>
         </div>
     </div>
@@ -800,6 +799,12 @@
             }
             if (instructionCloseButton) {
                 instructionCloseButton.addEventListener('click', () => toggleInstructions(false));
+                instructionCloseButton.addEventListener('keydown', event => {
+                    if (event.key === 'Escape' || event.key === 'Esc') {
+                        event.preventDefault();
+                        toggleInstructions(false);
+                    }
+                });
             }
             if (instructionsPanel) {
                 instructionsPanel.addEventListener('click', event => {
