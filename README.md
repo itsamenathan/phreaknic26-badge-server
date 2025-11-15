@@ -2,6 +2,8 @@
 
 Python web service for managing PhreakNIC badge artwork, from attendee selection through to firmware generation.
 
+Firmware: https://github.com/tylercrumpton/phreaknic26-esl-badge
+
 ## Features
 - Attendee badge page (`/badges/{unique_id}`) shows the badge holder’s name and current artwork options. A landing page `/` lets users enter their badge ID.
 - Admin artwork screen (`/admin/images`) lets authenticated staff add, preview, and delete available badge artwork.

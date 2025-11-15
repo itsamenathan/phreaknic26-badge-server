@@ -68,6 +68,88 @@ select {
     pointer-events: none;
 }
 
+.github-link {
+    position: absolute;
+    top: 1.25rem;
+    right: 1.25rem;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    border: 1px solid rgba(48, 255, 152, 0.4);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #30ff98;
+    background: rgba(5, 12, 7, 0.9);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.35);
+    text-decoration: none;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    cursor: pointer;
+    padding: 0;
+}
+
+.github-link svg {
+    width: 22px;
+    height: 22px;
+}
+
+.github-link:focus-visible,
+.github-link:hover {
+    transform: translateY(-2px) scale(1.02);
+    border-color: rgba(48, 255, 152, 0.7);
+    box-shadow: 0 16px 26px rgba(48, 255, 152, 0.18);
+    outline: none;
+}
+
+.github-links-list {
+    list-style: none;
+    margin: 0 0 1.5rem;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.github-links-list li {
+    position: relative;
+    padding-left: 1.25rem;
+}
+
+.github-links-list li::before {
+    content: "\2022";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #30ff98;
+    font-size: 1.2em;
+    line-height: 1;
+}
+
+.github-links-list a {
+    color: #dafee6;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid transparent;
+    transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.github-links-list a::after {
+    content: "\2197";
+    font-size: 0.85em;
+    opacity: 0.75;
+}
+
+.github-links-list a:hover,
+.github-links-list a:focus-visible {
+    color: #30ff98;
+    border-color: rgba(48, 255, 152, 0.45);
+    outline: none;
+}
+
 header {
     text-align: center;
     margin-bottom: 2rem;
